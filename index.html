@@ -396,7 +396,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="period-pills" id="pf-months"></div>
       <span class="pf-freshness" id="pf-freshness-label"></span>
     </div>
-    <div class="pf-inactive-note">&#9432; Period filter does not apply to P&amp;L Compare — use the selectors inside that tab.</div>
+    <div class="pf-inactive-note">&#9432; Click multiple pills to combine (e.g. 2024 + 2025, or Q2 + Q3). Period filter does not apply to P&amp;L Compare — use the selectors inside that tab.</div>
   </div>
   <!-- #A12: mobile period filter dropdown -->
   <div class="pf-mobile-wrap" style="display:none;margin-bottom:var(--sp3)">
@@ -1221,9 +1221,10 @@ const STATE = {
 /* ── GLOBAL PERIOD FILTER ── */
 // Year IDs populated dynamically; quarter pills are generic Q1–Q4
 let PF_YEAR_IDS = ['all'];
-// Two-axis state: selected year (string '2025', or null) + selected quarter number (1–4, or null)
-let _pfYear = null;   // null = All years
-let _pfQtr  = null;   // null = All quarters
+// Multi-select state: any combination of years, quarters, and months. Empty = "All".
+let _pfYears  = new Set();   // strings like '2025'
+let _pfQtrs   = new Set();   // numbers 1–4
+let _pfMonths = new Set();   // keys like 'm3-2025'
 
 function _pfClearAll() {
   PF_YEAR_IDS.forEach(id => {
@@ -1235,61 +1236,134 @@ function _pfClearAll() {
   document.querySelectorAll('#pf-months .pill').forEach(b => b.classList.remove('on'));
 }
 
-// Compute the effective period key from _pfYear + _pfQtr
-function _pfComputePeriod() {
-  if (!_pfYear && !_pfQtr) return 'all';
-  if (_pfYear && !_pfQtr) return _pfYear;              // full year
-  if (!_pfYear && _pfQtr) {
-    // No year selected — use most recent year that has this quarter
+// Expand current multi-select state to a list of single-period keys
+function _pfExpandKeys() {
+  const months = [..._pfMonths];
+  const years  = [..._pfYears];
+  const qtrs   = [..._pfQtrs].sort((a,b)=>a-b);
+  if (months.length) return months;
+  if (!years.length && !qtrs.length) return ['all'];
+  if (years.length && !qtrs.length) return years;
+  if (!years.length && qtrs.length) {
+    // No year selected — use most recent year for each selected quarter
     const recentYr = PF_YEAR_IDS.filter(id => /^\d{4}$/.test(id)).sort().reverse()[0] || '2025';
     const yy = recentYr.slice(2);
-    return `q${_pfQtr}-${yy}`;
+    return qtrs.map(q => `q${q}-${yy}`);
   }
-  // Both year and quarter selected
-  const yy = _pfYear.slice(2);
-  return `q${_pfQtr}-${yy}`;
+  // Cross-product of years × quarters
+  const keys = [];
+  for (const y of years) for (const q of qtrs) keys.push(`q${q}-${y.slice(2)}`);
+  return keys;
+}
+
+// Translate an abstract period key to the client filter dialect (2026 → ytd26, all → full)
+function _pfXlateClientKey(k) {
+  if (k === 'all') return 'full';
+  if (k === '2026') return 'ytd26';
+  return k;
+}
+function _pfXlateKeys(keys) {
+  return keys.map(_pfXlateClientKey);
 }
 
 function _pfApplyState() {
   _pfClearAll();
-  const p = _pfComputePeriod();
-  STATE.globalPeriod = p;
+  const keys = _pfExpandKeys();
+  STATE.globalPeriod = keys.length === 1 ? keys[0] : 'multi';
+  STATE.globalPeriodKeys = keys;
 
-  // Highlight active year pill
-  if (!_pfYear) {
+  // Highlight active pills
+  if (!_pfYears.size && !_pfQtrs.size && !_pfMonths.size) {
     const allBtn = document.getElementById('pf-all'); if (allBtn) allBtn.classList.add('on');
-  } else {
-    const yBtn = document.getElementById('pf-'+_pfYear); if (yBtn) yBtn.classList.add('on');
   }
-  // Highlight active quarter pill
-  if (_pfQtr) {
-    const qBtn = document.getElementById('pf-qnum-'+_pfQtr); if (qBtn) qBtn.classList.add('on');
-  }
+  _pfYears.forEach(y => {
+    const b = document.getElementById('pf-'+y); if (b) b.classList.add('on');
+  });
+  _pfQtrs.forEach(q => {
+    const b = document.getElementById('pf-qnum-'+q); if (b) b.classList.add('on');
+  });
 
-  // Month row always stays visible — rebuild for the active year (or default 2026)
-  _pfBuildMonthPills(_pfYear || null);
+  // Month row stays visible — rebuild for the most recently picked year (or default)
+  const firstYear = _pfYears.size ? [..._pfYears].sort().reverse()[0] : null;
+  _pfBuildMonthPills(firstYear);
+  _pfMonths.forEach(mKey => {
+    const b = document.getElementById('pf-'+mKey); if (b) b.classList.add('on');
+  });
 
-  // Translate period key to client/supplier filters
-  let cf, sf;
-  if (p === 'all')          { cf = 'full';   sf = 'full'; }
-  else if (/^\d{4}$/.test(p)) { cf = p === '2026' ? 'ytd26' : p; sf = cf; }
-  else                        { cf = p; sf = p; }   // quarter or month key
-
+  // Propagate to downstream filters — single key as string, multi as array
+  const xlated = _pfXlateKeys(keys);
+  const cf = xlated.length === 1 ? xlated[0] : xlated;
   clientFilter = cf; STATE.clientFilter = cf;
-  supPeriodFilter = sf; STATE.supPeriodFilter = sf;
+  supPeriodFilter = cf; STATE.supPeriodFilter = cf;
 
-  // #A8 — update KPI strip to reflect selected period
-  updateKPIStrip(p);
+  // #A8 — update KPI strip to reflect selected period(s)
+  updateKPIStrip(keys);
 
   invalidateCharts();
   const active = document.querySelector('.tab-btn.on');
   if (active) renderTabCharts(active.id.replace('tab-',''));
 }
 
-/* #A8 — KPI strip reactive to period filter */
-function updateKPIStrip(period) {
-  // Only update when we have real data
+/* #A8 — KPI strip reactive to period filter. Returns {rev,costs,profit} for a single period key. */
+function _kpiPartFor(period) {
+  if (period === 'all') {
+    const ly = [...ANNUAL].sort((a,b)=>b.year-a.year).find(d=>d.year<2026);
+    return ly ? { rev:ly.rev, costs:ly.costs, profit:ly.profit } : null;
+  }
+  if (/^\d{4}$/.test(period)) {
+    const yr = parseInt(period);
+    if (yr === 2026) {
+      const lm = LAST_MONTH;
+      const mths = MONTHLY_2026.slice(0, lm);
+      const rev = mths.reduce((s,m)=>s+m.rev,0);
+      const costs = mths.reduce((s,m)=>s+m.costs,0);
+      return { rev, costs, profit: rev - costs };
+    }
+    const row = ANNUAL.find(d=>d.year===yr);
+    return row ? { rev:row.rev, costs:row.costs, profit:row.profit } : null;
+  }
+  if (/^q\d-\d\d$/.test(period)) {
+    const d = PL_BY_PERIOD?.quarters;
+    const qKey = Object.keys(d||{}).find(k => {
+      const m = k.match(/^(\d{4}) Q(\d)$/);
+      return m && `q${m[2]}-${m[1].slice(2)}` === period;
+    });
+    if (qKey && d[qKey]) {
+      const q = d[qKey];
+      return { rev: q.rev_total||0, costs: q.costs_total||0, profit: q.ebit||0 };
+    }
+  }
+  if (/^m\d{1,2}-\d{4}$/.test(period)) {
+    const [mp, yp] = period.split('-');
+    const mo = parseInt(mp.slice(1));
+    if (yp === '2026') {
+      const m = MONTHLY_2026[mo-1];
+      if (m) return { rev: m.rev||0, costs: m.costs||0, profit: (m.rev||0) - (m.costs||0) };
+    }
+  }
+  return null;
+}
+
+function updateKPIStrip(periodOrKeys) {
   if (!ANNUAL || !ANNUAL.length) return;
+  // Multi-select: sum across keys, combined label
+  if (Array.isArray(periodOrKeys) && periodOrKeys.length > 1) {
+    let rev = 0, costs = 0, profit = 0;
+    for (const k of periodOrKeys) {
+      const part = _kpiPartFor(k);
+      if (part) { rev += part.rev; costs += part.costs; profit += part.profit; }
+    }
+    if (!rev) return;
+    const strip = document.querySelector('.kpi-strip');
+    if (!strip) return;
+    const kpis = strip.querySelectorAll('.kpi');
+    const label = `${periodOrKeys.length} periods combined`;
+    const sub = 'Margin ' + (rev > 0 ? (profit/rev*100).toFixed(1) : '—') + '%';
+    if (kpis[0]) { kpis[0].querySelector('.kpi-label').textContent = label; kpis[0].querySelector('.kpi-value').textContent = fmtM(rev); kpis[0].querySelector('.kpi-sub').textContent = sub; kpis[0].className = 'kpi kpi-pos'; }
+    if (kpis[1]) { kpis[1].querySelector('.kpi-label').textContent = 'Net Profit'; kpis[1].querySelector('.kpi-value').textContent = fmtM(profit); kpis[1].querySelector('.kpi-sub').textContent = 'Costs '+fmtM(costs); kpis[1].className = 'kpi '+(profit>=0?'kpi-pos':'kpi-neg'); }
+    return;
+  }
+  const period = Array.isArray(periodOrKeys) ? periodOrKeys[0] : periodOrKeys;
   // Determine which dataset to pull from
   let rev=0, costs=0, profit=0, label='', sublabel='';
   if (period === 'all') {
@@ -1335,32 +1409,31 @@ function updateKPIStrip(period) {
   }
 }
 
-// Called by year pills
+// Called by year pills and month pills — toggles the selection (click again to deselect)
 function setGlobalPeriod(p) {
-  if (p === 'all') { _pfYear = null; _pfQtr = null; }
-  else if (/^\d{4}$/.test(p)) { _pfYear = p; _pfQtr = null; }   // year pill clears quarter
-  else if (/^m\d{1,2}-\d{4}$/.test(p)) {
-    // Month pill — keep year, clear quarter
-    const m = p.match(/^m(\d{1,2})-(\d{4})$/);
-    if (m) { _pfYear = m[2]; _pfQtr = null; }
-    STATE.globalPeriod = p;
-    _pfClearAll();
-    const btn = document.getElementById('pf-'+p); if (btn) btn.classList.add('on');
-    if (_pfYear) { const yBtn = document.getElementById('pf-'+_pfYear); if (yBtn) yBtn.classList.add('on'); }
-    let cf = p, sf = p;
-    clientFilter = cf; STATE.clientFilter = cf;
-    supPeriodFilter = sf; STATE.supPeriodFilter = sf;
-    invalidateCharts();
-    const active = document.querySelector('.tab-btn.on');
-    if (active) renderTabCharts(active.id.replace('tab-',''));
-    return;
+  if (p === 'all') {
+    _pfYears.clear(); _pfQtrs.clear(); _pfMonths.clear();
+  } else if (/^\d{4}$/.test(p)) {
+    // Year toggle — drop any months that no longer belong to a selected year
+    if (_pfYears.has(p)) _pfYears.delete(p);
+    else _pfYears.add(p);
+    if (_pfYears.size) {
+      [..._pfMonths].forEach(mk => {
+        const m = mk.match(/^m\d{1,2}-(\d{4})$/);
+        if (m && !_pfYears.has(m[1])) _pfMonths.delete(mk);
+      });
+    }
+  } else if (/^m\d{1,2}-\d{4}$/.test(p)) {
+    if (_pfMonths.has(p)) _pfMonths.delete(p);
+    else _pfMonths.add(p);
   }
   _pfApplyState();
 }
 
 // Called by Q1/Q2/Q3/Q4 pills — toggles the quarter (click again to deselect)
 function setGlobalQuarter(q) {
-  _pfQtr = (_pfQtr === q) ? null : q;  // toggle
+  if (_pfQtrs.has(q)) _pfQtrs.delete(q);
+  else _pfQtrs.add(q);
   _pfApplyState();
 }
 
@@ -1467,10 +1540,11 @@ function exportCSV(type) {
   } else if (type === 'suppliers') {
     filename = 'suppliers_export.csv';
     rows.push(['#','Supplier','Category','Spend','Share','vs Prev Year']);
-    const sorted = [...TOP_SUPPLIERS].sort((a,b) => (b.periods?.[supPeriodFilter]||b.t||0)-(a.periods?.[supPeriodFilter]||a.t||0)).slice(0,20);
-    const total = sorted.reduce((s,x)=>s+(x.periods?.[supPeriodFilter]||x.t||0),0);
+    const sorted = [...TOP_SUPPLIERS].map(x => ({...x, _v: getSupplierAmount(x, supPeriodFilter)}))
+      .sort((a,b) => b._v - a._v).slice(0,20);
+    const total = sorted.reduce((s,x)=>s+(x._v||0),0);
     sorted.forEach((s,i) => {
-      const v = s.periods?.[supPeriodFilter]||s.t||0;
+      const v = s._v||0;
       if (!v) return;
       rows.push([i+1, s.n, s.cat||'', (v/1e6).toFixed(2), total>0?(v/total*100).toFixed(1)+'%':'—', '—']);
     });
@@ -2025,8 +2099,11 @@ const CLIENT_NOTES = {
 };
 
 function getClientPeriodData(client, filter) {
+  if (Array.isArray(filter)) {
+    return filter.reduce((s, f) => s + getClientPeriodData(client, f), 0);
+  }
   const yrs = client.years;
-  if (filter === 'all') {
+  if (filter === 'all' || filter === 'full') {
     return Object.values(yrs).reduce((s,y) => s + y.t, 0);
   }
   if (filter === 'ytd26') {
@@ -2060,6 +2137,9 @@ function getClientPeriodData(client, filter) {
 }
 
 function getClientPrevPeriodData(client, filter) {
+  if (Array.isArray(filter)) {
+    return filter.reduce((s, f) => s + getClientPrevPeriodData(client, f), 0);
+  }
   const yrs = client.years;
   if (filter === 'ytd26') {
     // Q1+Apr 2025 comparison — String key works for both array and sparse dict
@@ -2344,6 +2424,9 @@ const CAT_GROUP = {
 };
 
 function getSupplierAmount(sup, period) {
+  if (Array.isArray(period)) {
+    return period.reduce((s, p) => s + getSupplierAmount(sup, p), 0);
+  }
   // #9: use pre-aggregated totals if available (fast path)
   if (sup._t) {
     if (period === 'full')   return sup._t.full;
@@ -2377,6 +2460,9 @@ function getSupplierAmount(sup, period) {
 }
 
 function getSupplierPrevAmount(sup, period) {
+  if (Array.isArray(period)) {
+    return period.reduce((s, p) => s + getSupplierPrevAmount(sup, p), 0);
+  }
   if (period === 'ytd26') {
     // Jan-Apr 2025 — use pre-aggregated if available
     if (sup._t) return sup._t.prev_ytd;
