@@ -2679,7 +2679,7 @@ function toggleCostEvoDetail(cat){
 function renderCostEvoDetail(cat){
   const host = document.getElementById('costevo-detail');
   if (!host) return;
-  const yrs = ['2021','2022','2023','2024','2025','2026'];
+  const yrs = ['2022','2023','2024','2025','2026'];
   const d = CAT_EVO[cat]; if (!d) { host.innerHTML=''; return; }
   const modeLabel = _ceMode === 'abs' ? 'Absolute (₽)' : (_ceMode === 'pctRev' ? '% of Revenue' : '% of Cost');
   host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
