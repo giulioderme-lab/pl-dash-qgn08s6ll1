@@ -504,6 +504,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
             <tbody id="tree-body"></tbody>
           </table>
         </div>
+        <div id="cost-breakdown-detail" style="margin-top:var(--sp4);display:none"></div>
       </div>
     </div>
     <div class="card" style="margin-bottom:0">
@@ -1887,6 +1888,50 @@ function buildCostCompareChart() {
   }
 }
 
+let _cbSelectedCat = null;
+
+function toggleCostBreakdownDetail(cat){
+  if (_cbSelectedCat === cat){
+    _cbSelectedCat = null;
+    const host = document.getElementById('cost-breakdown-detail');
+    if (host){ host.style.display='none'; host.innerHTML=''; }
+    buildTreeTable();
+    return;
+  }
+  _cbSelectedCat = cat;
+  buildTreeTable();
+  const host = document.getElementById('cost-breakdown-detail');
+  if (host) host.style.display = '';
+  requestAnimationFrame(() => renderCostBreakdownDetail(cat));
+}
+
+function renderCostBreakdownDetail(cat){
+  const host = document.getElementById('cost-breakdown-detail');
+  if (!host) return;
+  const color = CAT_COLORS[cat] || CE_COLORS[cat] || '#989693';
+  const closeBtn = `<button class="pill" onclick='toggleCostBreakdownDetail(${JSON.stringify(cat)})' style="background:transparent">&times; Close</button>`;
+  const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:6px;vertical-align:middle"></span>`;
+  const d = CAT_EVO[cat];
+  if (!d){
+    host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
+      <div style="font-size:var(--t-md);color:var(--t1);font-weight:600">${dot}${cat} — 5-Year Trend</div>
+      ${closeBtn}
+    </div>
+    <div style="padding:var(--sp5);text-align:center;color:var(--t3);font-size:var(--t-sm);background:var(--card);border:1px dashed var(--b2);border-radius:8px">No yearly evolution data available for &ldquo;${cat}&rdquo;.</div>`;
+    return;
+  }
+  host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
+    <div style="font-size:var(--t-md);color:var(--t1);font-weight:600">${dot}${cat} — 5-Year Trend (Absolute ₽)</div>
+    ${closeBtn}
+  </div><div class="chart-wrap" id="cost-breakdown-detail-chart"></div>`;
+  const yrs = ['2022','2023','2024','2025','2026'];
+  const vals = yrs.map(yr => {
+    const v = d[yr]?.t || 0;
+    return { year: yr, raw: v, plotted: v };
+  });
+  buildCostEvoDetailChart(cat, vals, 'cost-breakdown-detail-chart', false);
+}
+
 function buildTreeTable(){
   const tbody = document.getElementById('tree-body');
   const thead = document.getElementById('tree-thead');
@@ -1921,9 +1966,12 @@ function buildTreeTable(){
     const pctRev = revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) : null;
     const mCells = slots.map(s => `<td class="mono dim">${slotCell(s.cats[cat] || 0, s)}</td>`).join('');
     const tailCell = `<td class="mono muted">${pctRev==null?'—':pctRev+'%'}</td>`;
-    rows += `<tr class="tree-row"><td style="padding-left:20px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat}</td>${mCells}<td class="mono">${totalCellFor(total)}</td><td class="mono muted">${share}%</td>${tailCell}</tr>`;
+    const sel = _cbSelectedCat === cat ? ' selected' : '';
+    const catJson = JSON.stringify(cat);
+    rows += `<tr class="tree-row client-row${sel}" onclick='toggleCostBreakdownDetail(${catJson})' title="Click to see this category's 5-year trend"><td style="padding-left:20px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat}</td>${mCells}<td class="mono">${totalCellFor(total)}</td><td class="mono muted">${share}%</td>${tailCell}</tr>`;
   });
   tbody.innerHTML = rows;
+  if (_cbSelectedCat) renderCostBreakdownDetail(_cbSelectedCat);
 }
 
 /* ══════════════════════════════════════════════
@@ -2734,11 +2782,11 @@ function renderCostEvoDetail(cat){
   buildCostEvoDetailChart(cat, vals);
 }
 
-function buildCostEvoDetailChart(cat, vals){
-  const cId = 'costevo-detail-chart';
+function buildCostEvoDetailChart(cat, vals, cId, isPct){
+  cId = cId || 'costevo-detail-chart';
+  if (isPct === undefined) isPct = _ceMode !== 'abs';
   const host = document.getElementById(cId);
   if (!host) return;
-  const isPct = _ceMode !== 'abs';
   const cW = gW(cId), PL = 60, PR = 20, PT = 16, PB = 28, H = 240;
   const iW = cW - PL - PR, iH = H - PT - PB;
   const svg = el('svg', { viewBox: `0 0 ${cW} ${H}`, xmlns: NS });
