@@ -1743,7 +1743,9 @@ function _breakdownSlotForKey(k) {
     const qn = Math.ceil(mo / 3);
     const d = (PL_BY_PERIOD.quarters || {})[`${yr} Q${qn}`];
     if (!d) return null;
-    return { name: `Q${qn} ${yr}`, costs: d.costs_total, rev: d.rev_total, cats: { ...d.costs_by_cat } };
+    const cats = {};
+    for (const [c, v] of Object.entries(d.costs_by_cat || {})) cats[c] = (v || 0) / 3;
+    return { name: `${mName} ${yr}`, costs: (d.costs_total || 0) / 3, rev: (d.rev_total || 0) / 3, cats };
   }
   return null;
 }
@@ -1830,15 +1832,19 @@ function getBreakdownData() {
         catTotals: { ...mData.cats }, revTotal: mData.rev
       };
     }
-    // For other years, use quarterly data as fallback (month-level not available)
+    // For other years, split quarterly ÷ 3 (no month-level data pre-2026)
     const qNum = Math.ceil(mo / 3);
     const key = `${yr} Q${qNum}`;
     const d = PL_BY_PERIOD.quarters[key];
     if (!d) return null;
+    const cats = {};
+    for (const [c, v] of Object.entries(d.costs_by_cat || {})) cats[c] = (v || 0) / 3;
+    const costs = (d.costs_total || 0) / 3;
+    const rev   = (d.rev_total || 0) / 3;
     return {
-      label: `~${label} (Q${qNum} ${yr})`, isSinglePeriod: true,
-      slots: [{ name: `Q${qNum} ${yr}`, costs: d.costs_total, rev: d.rev_total, cats: { ...d.costs_by_cat } }],
-      catTotals: { ...d.costs_by_cat }, revTotal: d.rev_total
+      label: `${label} (≈ Q${qNum} ÷ 3)`, isSinglePeriod: true,
+      slots: [{ name: label, costs, rev, cats }],
+      catTotals: { ...cats }, revTotal: rev
     };
   }
 
