@@ -709,7 +709,12 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128200;</span> P&amp;L Comparison</div>
-        <div style="font-size:var(--t-xs);color:var(--t3)">Default: same quarter YoY &mdash; % Change = (B &minus; A) / |A|</div>
+        <div class="pills" id="plc-mode-pills" style="margin-left:auto">
+          <button class="pill on" id="plc-mode-abs" onclick="setPLCMode('abs')" title="Absolute ₽ values with % of revenue / costs as secondary column">Abs ₽</button>
+          <button class="pill" id="plc-mode-pctRev" onclick="setPLCMode('pctRev')" title="Each line as a percentage of Total Revenue for its period">% Rev</button>
+          <button class="pill" id="plc-mode-pctCosts" onclick="setPLCMode('pctCosts')" title="Each line as a percentage of Total Costs for its period">% Costs</button>
+        </div>
+        <div style="font-size:var(--t-xs);color:var(--t3);flex-basis:100%">Default: same quarter YoY &mdash; % Change = (B &minus; A) / |A|. In % modes, Δ shown in pp (percentage points).</div>
       </div>
       <div id="plc-partial-warn" style="display:none;margin:0 0 var(--sp3);padding:var(--sp2) var(--sp3);background:rgba(var(--amber-rgb,255,176,32),.08);border:1px solid var(--amber);border-left:3px solid var(--amber);border-radius:6px;font-size:var(--t-xs);color:var(--t2)"></div>
       <div class="tbl-wrap">
@@ -3202,6 +3207,17 @@ function _plcShiftPrevYear(){
   renderPLCompare();
 }
 
+let _plcMode = 'abs'; // 'abs' | 'pctRev' | 'pctCosts'
+function setPLCMode(mode){
+  if (mode !== 'abs' && mode !== 'pctRev' && mode !== 'pctCosts') return;
+  _plcMode = mode;
+  ['abs','pctRev','pctCosts'].forEach(m => {
+    const b = document.getElementById('plc-mode-'+m);
+    if (b) b.classList.toggle('on', m === mode);
+  });
+  renderPLCompare();
+}
+
 function initPLCompare() {
   if (!document.getElementById('plc-pick-a')) return;
   _plcBuildPickers();
@@ -3234,8 +3250,33 @@ function renderPLCompare() {
 
   const labelA = _plcSummary('a');
   const labelB = _plcSummary('b');
-  if (thA) thA.textContent = labelA;
-  if (thB) thB.textContent = labelB;
+  const mode = _plcMode || 'abs';
+  const isAbs = mode === 'abs';
+  const colspan = isAbs ? 6 : 4;
+
+  // Rebuild thead to match mode (6 cols abs, 4 cols pct)
+  const theadRow = document.querySelector('#plc-table thead tr');
+  if (theadRow) {
+    if (isAbs) {
+      theadRow.innerHTML =
+        '<th style="text-align:left;min-width:220px">Line Item</th>' +
+        '<th id="plc-th-a">'+labelA+'</th>' +
+        '<th>% A</th>' +
+        '<th id="plc-th-b">'+labelB+'</th>' +
+        '<th>% B</th>' +
+        '<th>% Change</th>';
+    } else {
+      const ofWhat = mode === 'pctRev' ? 'Rev' : 'Costs';
+      theadRow.innerHTML =
+        '<th style="text-align:left;min-width:220px">Line Item</th>' +
+        '<th id="plc-th-a">'+labelA+' <span style="color:var(--t3);font-weight:500">(% '+ofWhat+')</span></th>' +
+        '<th id="plc-th-b">'+labelB+' <span style="color:var(--t3);font-weight:500">(% '+ofWhat+')</span></th>' +
+        '<th>Δ pp</th>';
+    }
+  } else {
+    if (thA) thA.textContent = labelA;
+    if (thB) thB.textContent = labelB;
+  }
 
   // Partial-period warning banner (multi-atom aware)
   const warn = document.getElementById('plc-partial-warn');
@@ -3266,11 +3307,11 @@ function renderPLCompare() {
   }
 
   if (!atomsA.length || !atomsB.length) {
-    body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">Select at least one period for both sides.</td></tr>';
+    body.innerHTML = '<tr><td colspan="'+colspan+'" style="color:var(--t3);padding:20px">Select at least one period for both sides.</td></tr>';
     return;
   }
   if (!dA || !dB) {
-    body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">No data available for the selected periods.</td></tr>';
+    body.innerHTML = '<tr><td colspan="'+colspan+'" style="color:var(--t3);padding:20px">No data available for the selected periods.</td></tr>';
     return;
   }
 
@@ -3305,30 +3346,60 @@ function renderPLCompare() {
     return `<td class="mono" style="color:var(--t3)">${p.toFixed(1)}%</td>`;
   }
 
+  function ppCell(pA, pB, invertSign) {
+    if (pA === null || pB === null) return '<td class="plc-change-neu">—</td>';
+    const d = pB - pA;
+    if (Math.abs(d) < 0.05) return '<td class="plc-change-neu">— 0.0pp</td>';
+    const isGood = invertSign ? d < 0 : d > 0;
+    const cls = isGood ? 'plc-change-pos' : 'plc-change-neg';
+    const arrow = d > 0 ? '↑' : '↓';
+    return `<td class="${cls}">${arrow} ${Math.abs(d).toFixed(1)}pp</td>`;
+  }
+
   function row(label, vA, vB, indent, invertSign, isBold, extraCls, denom) {
-    const pct = pctChange(vA, vB);
     let cls = '';
     if (isBold) cls += ' plc-total-row';
     if (indent) cls += ' plc-indent';
     if (extraCls) cls += ' ' + extraCls;
-    const denA = denom === 'rev' ? dA.rev_total : (denom === 'cost' ? dA.costs_total : 0);
-    const denB = denom === 'rev' ? dB.rev_total : (denom === 'cost' ? dB.costs_total : 0);
-    const pctA = denom ? pctCell(vA, denA) : '<td class="dim">—</td>';
-    const pctB = denom ? pctCell(vB, denB) : '<td class="dim">—</td>';
+    if (isAbs) {
+      const pct = pctChange(vA, vB);
+      const denA = denom === 'rev' ? dA.rev_total : (denom === 'cost' ? dA.costs_total : 0);
+      const denB = denom === 'rev' ? dB.rev_total : (denom === 'cost' ? dB.costs_total : 0);
+      const pctA = denom ? pctCell(vA, denA) : '<td class="dim">—</td>';
+      const pctB = denom ? pctCell(vB, denB) : '<td class="dim">—</td>';
+      return `<tr${cls?' class="'+cls.trim()+'"':''}>
+        <td>${label}</td>
+        ${valCell(vA, false)}
+        ${pctA}
+        ${valCell(vB, false)}
+        ${pctB}
+        ${chgCell(pct, invertSign, vA, vB)}
+      </tr>`;
+    }
+    // % mode: each value shown as % of the mode's denominator
+    const denA = mode === 'pctRev' ? dA.rev_total : dA.costs_total;
+    const denB = mode === 'pctRev' ? dB.rev_total : dB.costs_total;
+    const pA = (denA > 0 && vA !== 0) ? vA / denA * 100 : null;
+    const pB = (denB > 0 && vB !== 0) ? vB / denB * 100 : null;
+    const cA = pA === null ? '<td class="dim">—</td>' : `<td class="mono">${pA.toFixed(1)}%</td>`;
+    const cB = pB === null ? '<td class="dim">—</td>' : `<td class="mono">${pB.toFixed(1)}%</td>`;
     return `<tr${cls?' class="'+cls.trim()+'"':''}>
       <td>${label}</td>
-      ${valCell(vA, false)}
-      ${pctA}
-      ${valCell(vB, false)}
-      ${pctB}
-      ${chgCell(pct, invertSign, vA, vB)}
+      ${cA}${cB}${ppCell(pA, pB, invertSign)}
     </tr>`;
+  }
+
+  function marginRow(label, pA, pB, invertSign) {
+    if (isAbs) {
+      return `<tr class="plc-indent"><td>${label}</td><td class="dim">—</td><td class="mono gold">${pA.toFixed(1)}%</td><td class="dim">—</td><td class="mono gold">${pB.toFixed(1)}%</td>${chgCell(pB-pA, invertSign||false)}</tr>`;
+    }
+    return `<tr class="plc-indent"><td>${label}</td><td class="mono gold">${pA.toFixed(1)}%</td><td class="mono gold">${pB.toFixed(1)}%</td>${ppCell(pA, pB, invertSign||false)}</tr>`;
   }
 
   const rows = [];
 
   // ── REVENUE SECTION ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128181; Revenues</td></tr>`);
+  rows.push(`<tr class="plc-section-hdr"><td colspan="${colspan}">&#128181; Revenues</td></tr>`);
   rows.push(row('Total Revenue', dA.rev_total, dB.rev_total, false, false, true, null, 'rev'));
   if (dA.rev_corporate || dB.rev_corporate)
     rows.push(row('Corporate', dA.rev_corporate, dB.rev_corporate, true, false, false, null, 'rev'));
@@ -3338,7 +3409,7 @@ function renderPLCompare() {
     rows.push(row('Sponsors', dA.rev_sponsors, dB.rev_sponsors, true, false, false, null, 'rev'));
 
   // ── COSTS SECTION ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128197; Costs</td></tr>`);
+  rows.push(`<tr class="plc-section-hdr"><td colspan="${colspan}">&#128197; Costs</td></tr>`);
   rows.push(row('Total Costs', dA.costs_total, dB.costs_total, false, true, true, null, 'cost'));
 
   // Cost clusters — fixed groupings
@@ -3388,25 +3459,18 @@ function renderPLCompare() {
       rows.push(row('✦ Gross Profit (Rev − HR − Rent − F&B)', gpA, gpB, false, false, true, 'plc-ebit', 'rev'));
       const gpPctA = dA.rev_total>0 ? gpA/dA.rev_total*100 : 0;
       const gpPctB = dB.rev_total>0 ? gpB/dB.rev_total*100 : 0;
-      rows.push(`<tr class="plc-indent"><td>Gross Margin</td><td class="dim">—</td><td class="mono gold">${gpPctA.toFixed(1)}%</td><td class="dim">—</td><td class="mono gold">${gpPctB.toFixed(1)}%</td>${chgCell(gpPctB-gpPctA,false)}</tr>`);
+      rows.push(marginRow('Gross Margin', gpPctA, gpPctB, false));
     }
   });
 
   // ── EBIT ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#9878; Profitability</td></tr>`);
+  rows.push(`<tr class="plc-section-hdr"><td colspan="${colspan}">&#9878; Profitability</td></tr>`);
   rows.push(row('EBIT', dA.ebit, dB.ebit, false, false, true, 'plc-ebit', 'rev'));
 
   // EBIT % rows
   const ebitPctA = dA.rev_total > 0 ? dA.ebit / dA.rev_total * 100 : 0;
   const ebitPctB = dB.rev_total > 0 ? dB.ebit / dB.rev_total * 100 : 0;
-  rows.push(`<tr class="plc-indent">
-    <td>EBIT Margin</td>
-    <td class="dim">—</td>
-    <td class="mono gold">${ebitPctA.toFixed(1)}%</td>
-    <td class="dim">—</td>
-    <td class="mono gold">${ebitPctB.toFixed(1)}%</td>
-    ${chgCell(ebitPctB - ebitPctA, false)}
-  </tr>`);
+  rows.push(marginRow('EBIT Margin', ebitPctA, ebitPctB, false));
 
   // Taxes
   rows.push(row('Taxes', dA.taxes, dB.taxes, true, true, false, null, 'rev'));
@@ -3417,14 +3481,7 @@ function renderPLCompare() {
   // Net margin
   const netPctA = dA.rev_total > 0 ? dA.ebit_after_tax / dA.rev_total * 100 : 0;
   const netPctB = dB.rev_total > 0 ? dB.ebit_after_tax / dB.rev_total * 100 : 0;
-  rows.push(`<tr class="plc-indent">
-    <td>Net Margin</td>
-    <td class="dim">—</td>
-    <td class="mono">${netPctA.toFixed(1)}%</td>
-    <td class="dim">—</td>
-    <td class="mono">${netPctB.toFixed(1)}%</td>
-    ${chgCell(netPctB - netPctA, false)}
-  </tr>`);
+  rows.push(marginRow('Net Margin', netPctA, netPctB, false));
 
   body.innerHTML = rows.join('');
 }
