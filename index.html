@@ -113,6 +113,12 @@ svg{display:block;overflow:hidden} button{font-family:inherit}
 .pf-title-row{display:flex;align-items:baseline;gap:var(--sp3);flex-wrap:wrap}
 .pf-title{font-size:var(--t-sm);font-weight:700;color:var(--t1);text-transform:uppercase;letter-spacing:.5px}
 .pf-hint{font-size:11px;color:var(--t3);font-style:italic}
+/* Exclude-partial-months toggle */
+.pf-partial-row{display:none;align-items:center;gap:8px;margin-left:auto;font-size:11px;color:var(--t2)}
+.pf-partial-row.visible{display:inline-flex}
+.pf-partial-row input[type=checkbox]{width:14px;height:14px;accent-color:var(--gold);cursor:pointer;margin:0}
+.pf-partial-row label{cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.pf-partial-row .pf-partial-sub{color:var(--t3);font-style:italic}
 .pf-inactive-note{font-size:var(--t-xs);color:var(--t3);font-style:italic;margin-bottom:var(--sp2);display:none}
 .period-filter-bar.pf-inactive .pf-inactive-note{display:block}
 .pf-row{display:flex;align-items:center;gap:var(--sp3)}
@@ -421,6 +427,13 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="pf-title-row">
       <span class="pf-title">Period</span>
       <span class="pf-hint">Applies to every tab except P&amp;L Compare. Click multiple pills to combine (e.g. 2024 + 2025, or Q2 + Q3).</span>
+      <span class="pf-partial-row" id="pf-partial-row">
+        <label for="pf-partial-cb">
+          <input type="checkbox" id="pf-partial-cb" onchange="setExcludePartial(this.checked)">
+          Exclude partial months
+          <span class="pf-partial-sub" id="pf-partial-sub"></span>
+        </label>
+      </span>
     </div>
     <div class="pf-row">
       <span class="period-filter-label">Year</span>
@@ -1265,8 +1278,133 @@ const STATE = {
   supPeriodFilter: 'ytd26',
   costEvoView: 'abs',
   globalPeriod: 'all',
-  viewMode: 'abs'  // 'abs' | 'pctRev' | 'pctCost' — shared numeric representation across all tabs
+  viewMode: 'abs', // 'abs' | 'pctRev' | 'pctCost' — shared numeric representation across all tabs
+  excludePartial: false  // when true, partial-data months are hidden across every graph/table
 };
+
+/* Snapshots of data as loaded — used when setExcludePartial toggles back and forth */
+let LAST_MONTH_RAW = 4;
+let LAST_MONTH_FULL = 4;
+let _MONTHLY_2026_RAW = null;
+let _CATS_2026_TOTAL_RAW = null;
+let _PL_QUARTERS_RAW = null;
+let _PARTIAL_MONTH_LABEL = '';
+
+/* ── Partial-data month detection + toggle handler ─────────────────── */
+const _MON_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function _computeLastFullMonth() {
+  if (!window._DATA_META || !_DATA_META.updated) return LAST_MONTH;
+  const m = String(_DATA_META.updated).match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!m) return LAST_MONTH;
+  const day = +m[1];
+  const monthIdx = _MON_SHORT.indexOf(m[2].toLowerCase().slice(0,3)) + 1;
+  const year = +m[3];
+  if (monthIdx !== LAST_MONTH) return LAST_MONTH;
+  const daysInMonth = new Date(year, monthIdx, 0).getDate();
+  return day < daysInMonth ? Math.max(0, LAST_MONTH - 1) : LAST_MONTH;
+}
+
+function _snapshotPartialState() {
+  LAST_MONTH_RAW = LAST_MONTH;
+  LAST_MONTH_FULL = _computeLastFullMonth();
+  _MONTHLY_2026_RAW = Array.isArray(MONTHLY_2026) ? MONTHLY_2026.slice() : [];
+  _CATS_2026_TOTAL_RAW = Object.assign({}, CATS_2026_TOTAL || {});
+  _PL_QUARTERS_RAW = Object.assign({}, (PL_BY_PERIOD && PL_BY_PERIOD.quarters) || {});
+  // Cache the partial-month label for the checkbox description, e.g. "(Apr 2026 — 17 of 30 days)"
+  if (LAST_MONTH_FULL < LAST_MONTH_RAW && _DATA_META && _DATA_META.updated) {
+    const m = String(_DATA_META.updated).match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+    if (m) {
+      const day = +m[1], year = +m[3];
+      const monIdx = _MON_SHORT.indexOf(m[2].toLowerCase().slice(0,3));
+      const daysInMonth = monIdx >= 0 ? new Date(year, monIdx+1, 0).getDate() : 30;
+      const monName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][monIdx] || '';
+      _PARTIAL_MONTH_LABEL = `(${monName} ${year} — ${day} of ${daysInMonth} days)`;
+    }
+  } else {
+    _PARTIAL_MONTH_LABEL = '';
+  }
+}
+
+// Recompute CATS_2026_TOTAL by summing MONTHLY_2026.cats for months 1..n
+function _recomputeCats2026Total(n) {
+  const out = {};
+  const arr = _MONTHLY_2026_RAW || MONTHLY_2026 || [];
+  const src = arr.slice(0, n);
+  src.forEach(m => {
+    for (const [c, v] of Object.entries(m.cats || {})) out[c] = (out[c] || 0) + (v || 0);
+  });
+  return out;
+}
+
+function _applyExcludePartial(on) {
+  if (on) {
+    LAST_MONTH = LAST_MONTH_FULL;
+    MONTHLY_2026 = (_MONTHLY_2026_RAW || []).slice(0, LAST_MONTH_FULL);
+    CATS_2026_TOTAL = _recomputeCats2026Total(LAST_MONTH_FULL);
+    // Remove any 2026 quarter that includes a partial month
+    if (PL_BY_PERIOD && PL_BY_PERIOD.quarters) {
+      PL_BY_PERIOD.quarters = Object.assign({}, _PL_QUARTERS_RAW);
+      for (let q = 1; q <= 4; q++) {
+        if (q*3 > LAST_MONTH_FULL) delete PL_BY_PERIOD.quarters[`2026 Q${q}`];
+      }
+    }
+  } else {
+    LAST_MONTH = LAST_MONTH_RAW;
+    MONTHLY_2026 = (_MONTHLY_2026_RAW || []).slice();
+    CATS_2026_TOTAL = Object.assign({}, _CATS_2026_TOTAL_RAW || {});
+    if (PL_BY_PERIOD) PL_BY_PERIOD.quarters = Object.assign({}, _PL_QUARTERS_RAW || {});
+  }
+}
+
+function setExcludePartial(on) {
+  STATE.excludePartial = !!on;
+  _applyExcludePartial(STATE.excludePartial);
+
+  // Reset category-tree slider so its month range rebuilds
+  if (typeof _treeInit !== 'undefined') {
+    try { _treeInit = false; _treeMonths = []; } catch(_){}
+  }
+  // Invalidate every cached chart build
+  try { invalidateCharts(); } catch(_){}
+
+  // Rebuild month pills (LAST_MONTH may have shrunk)
+  try { _pfBuildMonthPills(null); } catch(_){}
+
+  // If any selected month/quarter is now invalid for 2026, prune it
+  try {
+    if (typeof _pfYears !== 'undefined') {
+      const pruneMonth = (k) => {
+        const m = k.match(/^m(\d{1,2})-(\d{4})$/);
+        if (!m) return false;
+        if (m[2] === '2026' && +m[1] > LAST_MONTH) return true;
+        return false;
+      };
+      const pruneQ = (k) => {
+        const m = k.match(/^q(\d)-(\d{2})$/);
+        if (!m) return false;
+        if (m[2] === '26' && +m[1]*3 > LAST_MONTH) return true;
+        return false;
+      };
+      [..._pfMonths].forEach(k => { if (pruneMonth(k)) _pfMonths.delete(k); });
+      [..._pfQtrs].forEach(k => { if (pruneQ(k)) _pfQtrs.delete(k); });
+    }
+    if (typeof _pfApplyState === 'function') _pfApplyState();
+  } catch(_){}
+
+  // Sync the checkbox (in case this was called programmatically)
+  const cb = document.getElementById('pf-partial-cb');
+  if (cb) cb.checked = !!STATE.excludePartial;
+
+  // Refresh KPI strip if it exists
+  try { if (typeof updateKPIStrip === 'function') updateKPIStrip(); } catch(_){}
+
+  // Re-render the currently visible tab
+  try {
+    const activeBtn = document.querySelector('.tab-btn.on');
+    const active = activeBtn ? activeBtn.id.replace('tab-','') : 'overview';
+    renderTabCharts(active);
+  } catch(_){}
+}
 
 /* Unified view-mode handler — drives Cost Breakdown, Cost Comparison, Cost Evolution, P&L Compare */
 function setViewMode(m) {
@@ -2823,9 +2961,10 @@ function getSupplierAmount(sup, period) {
     return period.reduce((s, p) => s + getSupplierAmount(sup, p), 0);
   }
   // #9: use pre-aggregated totals if available (fast path)
+  // Skip the ytd26 fast path when excludePartial is on — precomputed ytd26 includes the partial month.
   if (sup._t) {
     if (period === 'full')   return sup._t.full;
-    if (period === 'ytd26')  return sup._t.ytd26;
+    if (period === 'ytd26' && !STATE.excludePartial)  return sup._t.ytd26;
     if (period === 'q1-26')  { /* fall through to full calc for Q1 */ }
     else if (period === '2025')   return sup._t['2025'];
     else if (period === '2024')   return sup._t['2024'];
@@ -2860,8 +2999,9 @@ function getSupplierPrevAmount(sup, period) {
   }
   if (period === 'full') return 0;
   if (period === 'ytd26') {
-    // Jan-Apr 2025 — use pre-aggregated if available
-    if (sup._t) return sup._t.prev_ytd;
+    // Jan–LAST_MONTH of 2025. Skip the pre-aggregated fast path when excludePartial
+    // is on, since that total covers the full raw month range.
+    if (sup._t && !STATE.excludePartial) return sup._t.prev_ytd;
     let t=0;
     for (const cat_data of Object.values(sup.cats)) {
       const y25 = cat_data.y['2025'];
@@ -4084,6 +4224,16 @@ async function initDashboard(d) {
     const ver = d._meta.version ? ' · v'+d._meta.version : '';
     const sub = document.querySelector('.brand-sub');
     if (sub) sub.textContent = sub.textContent + upd + ver;
+  }
+
+  // Snapshot raw data + show the Exclude-Partial-Months checkbox if the current
+  // month has partial coverage (data day < days-in-month).
+  _snapshotPartialState();
+  const partialRow = document.getElementById('pf-partial-row');
+  const partialSub = document.getElementById('pf-partial-sub');
+  if (LAST_MONTH_FULL < LAST_MONTH_RAW) {
+    if (partialRow) partialRow.classList.add('visible');
+    if (partialSub) partialSub.textContent = _PARTIAL_MONTH_LABEL;
   }
 
   // Summary collapsed by default — user opens on demand
