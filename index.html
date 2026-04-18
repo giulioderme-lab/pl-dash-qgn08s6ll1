@@ -1671,8 +1671,71 @@ let qView='chart';
 /* ══════════════════════════════════════════════
    BREAKDOWN DATA HELPER — period-aware
 ══════════════════════════════════════════════ */
+// Build one {name, costs, rev, cats} slot for a single period key (year / quarter / month / ytd26 / all)
+function _breakdownSlotForKey(k) {
+  if (k === 'all' || k === 'full') {
+    const yrs = Object.values(PL_BY_PERIOD.years || {});
+    if (!yrs.length) return null;
+    const cats = {};
+    let costs = 0, rev = 0;
+    yrs.forEach(y => {
+      costs += y.costs_total || 0;
+      rev   += y.rev_total || 0;
+      for (const [c, v] of Object.entries(y.costs_by_cat || {})) cats[c] = (cats[c] || 0) + (v || 0);
+    });
+    return { name: 'All', costs, rev, cats };
+  }
+  if (k === '2026' || k === 'ytd26') {
+    const costs = MONTHLY_2026.reduce((s, m) => s + (m.costs || 0), 0);
+    const rev   = MONTHLY_2026.reduce((s, m) => s + (m.rev || 0), 0);
+    return { name: 'YTD 2026', costs, rev, cats: { ...CATS_2026_TOTAL } };
+  }
+  if (/^\d{4}$/.test(k)) {
+    const d = (PL_BY_PERIOD.years || {})[k];
+    if (!d) return null;
+    return { name: k, costs: d.costs_total, rev: d.rev_total, cats: { ...d.costs_by_cat } };
+  }
+  let m = k.match(/^q(\d)-(\d{2})$/);
+  if (m) {
+    const qn = +m[1], yr = '20' + m[2];
+    const d = (PL_BY_PERIOD.quarters || {})[`${yr} Q${qn}`];
+    if (!d) return null;
+    return { name: `Q${qn} ${yr}`, costs: d.costs_total, rev: d.rev_total, cats: { ...d.costs_by_cat } };
+  }
+  m = k.match(/^m(\d{1,2})-(\d{4})$/);
+  if (m) {
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const mo = +m[1], yr = m[2];
+    const mName = MON[mo - 1] || k;
+    if (yr === '2026') {
+      const md = MONTHLY_2026.find(x => x.month === mName);
+      if (!md) return null;
+      return { name: `${mName} ${yr}`, costs: md.costs, rev: md.rev, cats: { ...md.cats } };
+    }
+    const qn = Math.ceil(mo / 3);
+    const d = (PL_BY_PERIOD.quarters || {})[`${yr} Q${qn}`];
+    if (!d) return null;
+    return { name: `Q${qn} ${yr}`, costs: d.costs_total, rev: d.rev_total, cats: { ...d.costs_by_cat } };
+  }
+  return null;
+}
+
 function getBreakdownData() {
   const p = STATE.globalPeriod;
+
+  // Multi-period: aggregate across each selected period as its own slot
+  if (p === 'multi' && Array.isArray(STATE.globalPeriodKeys) && STATE.globalPeriodKeys.length > 1) {
+    const perSlot = STATE.globalPeriodKeys.map(_breakdownSlotForKey).filter(Boolean);
+    if (!perSlot.length) return null;
+    const catTotals = {};
+    let revTotal = 0;
+    perSlot.forEach(s => {
+      for (const [c, v] of Object.entries(s.cats)) catTotals[c] = (catTotals[c] || 0) + (v || 0);
+      revTotal += s.rev || 0;
+    });
+    const label = _globalPeriodLabel();
+    return { label, isSinglePeriod: false, slots: perSlot, catTotals, revTotal };
+  }
 
   // Helper: build a single-bar summary from PL_BY_PERIOD entry
   function fromPLPeriod(key, label, source) {
