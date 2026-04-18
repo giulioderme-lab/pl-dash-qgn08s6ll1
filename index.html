@@ -155,6 +155,8 @@ table{width:100%;border-collapse:collapse;font-size:var(--t-sm);min-width:400px}
 thead th{background:var(--row);color:var(--t2);padding:var(--sp2) var(--sp3);text-align:left;font-weight:600;font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--b2);white-space:nowrap}
 tbody td{padding:var(--sp2) var(--sp3);border-bottom:1px solid var(--b1);white-space:nowrap;font-size:15px}
 tbody tr:hover td{background:var(--gold-d)}
+tr.client-row,tr.supplier-row{cursor:pointer}
+tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in srgb, var(--gold) 18%, transparent);box-shadow:inset 3px 0 0 var(--gold)}
 .mono{font-family:var(--mono);font-size:var(--t-sm)}
 /* #7 — shape + color for pos/neg */
 .pos{color:var(--pos);font-weight:700}
@@ -410,46 +412,53 @@ tbody tr:hover td{background:var(--gold-d)}
   <!-- ═══ TAB: OVERVIEW ═══ -->
   <div id="panel-overview">
     <div class="panel-heading">Performance Summary — All Years</div>
-    <!-- Annual performance chart/table -->
-    <div>
-      <div class="card" style="margin-bottom:0">
-        <div class="card-hdr">
-          <div class="card-title"><span class="icon">&#128200;</span> <span id="annual-card-title">Annual Performance 2012–2026</span></div>
-          <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
-            <div class="pills">
-              <button class="pill on" id="pa-full" onclick="setAnnualMode('full')">Full Year</button>
-              <button class="pill" id="pa-ytd" onclick="setAnnualMode('ytd')" title="Q1 only — apples-to-apples comparison available for 2021–2026">YTD (Q1)</button>
-            </div>
-            <div class="pills">
-              <button class="pill on" id="pa-chart" onclick="setAnnualView('chart')">Chart</button>
-              <button class="pill" id="pa-table" onclick="setAnnualView('table')">Table</button>
-            </div>
-          </div>
-        </div>
-        <div id="annual-chart-view">
-          <div class="legend">
-            <div class="leg-item"><div class="leg-dot" style="background:var(--blue)"></div>Costs (base)</div>
-            <div class="leg-item"><div class="leg-dot" style="background:var(--gold)"></div>Gross Profit (stacked)</div>
-            <div class="leg-item"><div class="leg-dot" style="background:var(--pos);border-radius:50%;width:8px;height:8px"></div>Net Profit line</div>
-          </div>
-          <div class="chart-wrap" id="annual-stack-chart"></div>
-        </div>
-        <div id="annual-table-view" style="display:none">
-          <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Year</th><th>Revenue</th><th>Costs</th><th>Net Profit</th><th>Margin</th></tr></thead>
-              <tbody id="annual-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Key insights box -->
+    <!-- Annual performance chart/table + insights (merged) -->
     <div class="card">
       <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#128161;</span> Historical Context &amp; Insights</div>
+        <div class="card-title"><span class="icon">&#128200;</span> <span id="annual-card-title">Annual Performance 2012–2026</span></div>
+        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
+          <div class="pills">
+            <button class="pill on" id="pa-full" onclick="setAnnualMode('full')">Full Year</button>
+            <button class="pill" id="pa-ytd" onclick="setAnnualMode('ytd')" title="Year-to-date — last fully-complete quarter, apples-to-apples across years">YTD</button>
+            <button class="pill" id="pa-quarters" onclick="setAnnualMode('quarters')" title="Pick one or more quarters to sum across years">By Quarter</button>
+          </div>
+          <div class="pills" id="pa-qs" style="display:none" role="group" aria-label="Selected quarters">
+            <button class="pill on" id="pa-q1" onclick="toggleAnnualQuarter(1)">Q1</button>
+            <button class="pill on" id="pa-q2" onclick="toggleAnnualQuarter(2)">Q2</button>
+            <button class="pill on" id="pa-q3" onclick="toggleAnnualQuarter(3)">Q3</button>
+            <button class="pill on" id="pa-q4" onclick="toggleAnnualQuarter(4)">Q4</button>
+          </div>
+          <span id="pa-partial-note" style="display:none;font-size:var(--t-xs);color:var(--t3);align-self:center">&#9888; partial quarter</span>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);color:var(--t2);cursor:pointer;user-select:none" title="When off, periods that are not yet fully complete (e.g. 2026 YTD) are excluded for apples-to-apples comparison.">
+            <input type="checkbox" id="pa-include-partial" onchange="setAnnualIncludePartial(this.checked)" style="accent-color:var(--gold);cursor:pointer">
+            Include partial periods
+          </label>
+          <div class="pills">
+            <button class="pill on" id="pa-chart" onclick="setAnnualView('chart')">Chart</button>
+            <button class="pill" id="pa-table" onclick="setAnnualView('table')">Table</button>
+          </div>
+        </div>
       </div>
-      <div class="insight-box" id="hist-insights" style="max-width:100%;background:transparent;border:none;padding:0"></div>
+      <div id="annual-chart-view">
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:var(--blue)"></div>Costs (base)</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--gold)"></div>Gross Profit (stacked)</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--pos);border-radius:50%;width:8px;height:8px"></div>Net Profit line</div>
+        </div>
+        <div class="chart-wrap" id="annual-stack-chart"></div>
+      </div>
+      <div id="annual-table-view" style="display:none">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th><span id="annual-th-year">Year</span></th><th>Revenue</th><th>Costs</th><th>Net Profit</th><th>Margin</th></tr></thead>
+            <tbody id="annual-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Insights section (merged into same card) -->
+      <div style="margin-top:var(--sp4);padding-top:var(--sp4);border-top:1px solid var(--b1)">
+        <div class="insight-box" id="hist-insights" style="max-width:100%;background:transparent;border:none;padding:0"></div>
+      </div>
     </div>
   </div>
 
@@ -461,19 +470,21 @@ tbody tr:hover td{background:var(--gold-d)}
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#9632;</span> Cost Breakdown — <span id="breakdown-period-label">2026 YTD</span></div>
         <div class="pills">
-          <button class="pill on" id="p-stacked" onclick="setCostView('stacked')">Stacked Bars</button>
-          <button class="pill" id="p-tree" onclick="setCostView('tree')">Category Tree</button>
+          <button class="pill on" id="p-mode-abs"     onclick="setCostMode('abs')"     title="Absolute rubles">&#8381; Absolute</button>
+          <button class="pill"    id="p-mode-pctRev"  onclick="setCostMode('pctRev')"  title="Each value as a share of that period's revenue">% of Revenue</button>
+          <button class="pill"    id="p-mode-pctCost" onclick="setCostMode('pctCost')" title="Each value as a share of that period's total costs (composition)">% of Cost</button>
         </div>
       </div>
       <div id="stacked-view">
         <div class="legend" id="stack-legend"></div>
         <div class="chart-wrap" id="stack-chart"></div>
       </div>
-      <div id="tree-view" style="display:none">
-        <div class="pills" style="margin-bottom:var(--sp3)">
-          <button class="pill on" id="p-tree-abs" onclick="setCostTreeMode('abs')">₽ Absolute</button>
-          <button class="pill" id="p-tree-pct" onclick="setCostTreeMode('pct')">% of Revenue</button>
-        </div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><span class="icon">&#128202;</span> Category Tree — <span id="tree-period-label">2026 YTD</span></div>
+      </div>
+      <div id="tree-view">
         <div class="tbl-wrap">
           <table>
             <thead id="tree-thead"><tr><th>Category</th><th>Total</th><th>Share of Costs</th><th>% of Revenue</th></tr></thead>
@@ -482,11 +493,34 @@ tbody tr:hover td{background:var(--gold-d)}
         </div>
       </div>
     </div>
+    <div class="card" style="margin-bottom:0">
+      <div class="card-hdr">
+        <div class="card-title"><span class="icon">&#128200;</span> Cost Breakdown by Year — Last 5 Years</div>
+        <div class="pills" role="group" aria-label="Cost comparison period">
+          <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
+          <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
+          <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
+          <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
+          <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
+        </div>
+      </div>
+      <div style="font-size:var(--t-xs);color:var(--t3);margin-bottom:var(--sp2)">
+        Stack mode follows the toggle above (<span id="pcc-mode-hint">absolute</span>). <span id="pcc-partial-note" style="display:none">&#9888; partial period.</span>
+      </div>
+      <div class="legend" id="cc-legend"></div>
+      <div class="chart-wrap" id="cost-compare-chart"></div>
+    </div>
   </div>
 
   <!-- ═══ TAB: TOP CLIENTS ═══ -->
   <div id="panel-clients" style="display:none">
     <div class="panel-heading">Top Clients by Revenue — 2021–2026</div>
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><span class="icon">&#128201;</span> Client Revenue by Year — Top 10</div>
+      </div>
+      <div class="chart-wrap" id="clients-bar-chart"></div>
+    </div>
     <div class="card">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#127970;</span> Client Revenue Ranking</div>
@@ -514,11 +548,14 @@ tbody tr:hover td{background:var(--gold-d)}
         </table>
       </div>
     </div>
-    <div class="card" style="margin-bottom:0">
+    <!-- Per-client 5-year trend (shown when a client row is selected) -->
+    <div class="card" id="client-detail-card" style="display:none;margin-bottom:0">
       <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#128201;</span> Client Revenue by Year — Top 10</div>
+        <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
+        <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
       </div>
-      <div class="chart-wrap" id="clients-bar-chart"></div>
+      <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
+      <div class="chart-wrap" id="client-trend-chart"></div>
     </div>
   </div>
 
@@ -527,13 +564,20 @@ tbody tr:hover td{background:var(--gold-d)}
     <div class="panel-heading">Top Operational Suppliers — 2022–2026</div>
     <div class="card">
       <div class="card-hdr">
+        <div class="card-title"><span class="icon">&#9632;</span> Spend by Category — Top Suppliers</div>
+      </div>
+      <div class="legend" id="sup-bar-legend"></div>
+      <div class="chart-wrap" id="sup-bar-chart"></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128666;</span> Supplier Spend Ranking</div>
-        <div class="pills" style="gap:4px;flex-wrap:wrap">
-          <button class="pill on" id="psp-all-cats" onclick="setSupplierCatFilter('all')">All Categories</button>
-          <button class="pill" id="psp-food" onclick="setSupplierCatFilter('food')">Food &amp; Bev</button>
-          <button class="pill" id="psp-rent" onclick="setSupplierCatFilter('rent')">Rent</button>
-          <button class="pill" id="psp-mkt" onclick="setSupplierCatFilter('mkt')">Marketing</button>
-          <button class="pill" id="psp-other" onclick="setSupplierCatFilter('other')">Other</button>
+        <div class="pills" style="gap:4px;flex-wrap:wrap" role="group" aria-label="Supplier categories">
+          <button class="pill on" id="psp-food"  onclick="toggleSupplierCat('food')"  title="Toggle Food &amp; Beverage suppliers">Food &amp; Bev</button>
+          <button class="pill on" id="psp-rent"  onclick="toggleSupplierCat('rent')"  title="Toggle Rent &amp; Maintenance suppliers">Rent</button>
+          <button class="pill on" id="psp-mkt"   onclick="toggleSupplierCat('mkt')"   title="Toggle Marketing suppliers">Marketing</button>
+          <button class="pill on" id="psp-other" onclick="toggleSupplierCat('other')" title="Toggle all other categories">Other</button>
+          <button class="pill" id="psp-all-cats" onclick="selectAllSupplierCats()" title="Select all categories" style="background:transparent">All</button>
         </div>
       </div>
       <div class="pills" style="gap:4px;margin-bottom:12px;flex-wrap:wrap">
@@ -558,12 +602,14 @@ tbody tr:hover td{background:var(--gold-d)}
         </table>
       </div>
     </div>
-    <div class="card" style="margin-bottom:0">
+    <!-- Per-supplier 5-year trend (shown when a supplier row is selected) -->
+    <div class="card" id="supplier-detail-card" style="display:none;margin-bottom:0">
       <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#9632;</span> Spend by Category — Top Suppliers</div>
+        <div class="card-title"><span class="icon">&#128200;</span> <span id="supplier-detail-title">Supplier Trend</span></div>
+        <button class="pill" onclick="closeSupplierDetail()" title="Close" style="background:transparent">&times; Close</button>
       </div>
-      <div class="legend" id="sup-bar-legend"></div>
-      <div class="chart-wrap" id="sup-bar-chart"></div>
+      <div id="supplier-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
+      <div class="chart-wrap" id="supplier-trend-chart"></div>
     </div>
   </div>
 
@@ -573,11 +619,18 @@ tbody tr:hover td{background:var(--gold-d)}
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128201;</span> YoY Change by Category</div>
-        <button class="csv-btn" onclick="exportCSV('costevo')" aria-label="Export cost evolution data as CSV">⬇ CSV</button>
+        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
+          <div class="pills">
+            <button class="pill on" id="ce-mode-abs"     onclick="setCostEvoMode('abs')"     title="Absolute rubles per year">&#8381; Absolute</button>
+            <button class="pill"    id="ce-mode-pctRev"  onclick="setCostEvoMode('pctRev')"  title="Each value as a share of that year's revenue">% of Revenue</button>
+            <button class="pill"    id="ce-mode-pctCost" onclick="setCostEvoMode('pctCost')" title="Each value as a share of that year's total costs (composition)">% of Cost</button>
+          </div>
+          <button class="csv-btn" onclick="exportCSV('costevo')" aria-label="Export cost evolution data as CSV">⬇ CSV</button>
+        </div>
       </div>
       <div class="tbl-wrap">
         <table class="tbl-sticky-first">
-          <thead><tr><th>Category</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026 YTD</th><th>% Rev 2025</th><th>YoY 24→25 ₽</th><th>YoY 24→25 %</th></tr></thead>
+          <thead id="costevo-thead"><tr><th>Category</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026 YTD</th><th id="ce-th-tail1">% Rev 2025</th><th>YoY 24→25 ₽</th><th>YoY 24→25 %</th></tr></thead>
           <tbody id="costevo-body"></tbody>
         </table>
       </div>
@@ -610,7 +663,9 @@ tbody tr:hover td{background:var(--gold-d)}
             <tr>
               <th style="text-align:left;min-width:220px">Line Item</th>
               <th id="plc-th-a">Period A</th>
+              <th title="Share of section total (Revenue rows: % of Revenue · Cost rows: % of Costs · Profitability: % of Revenue)">% A</th>
               <th id="plc-th-b">Period B</th>
+              <th title="Share of section total (Revenue rows: % of Revenue · Cost rows: % of Costs · Profitability: % of Revenue)">% B</th>
               <th>% Change</th>
             </tr>
           </thead>
@@ -785,7 +840,7 @@ function showTab(name){
 /* ── TAB_BUILDERS map (#7) ── */
 const TAB_BUILDERS = {
   overview:  ()=>{ lazyBuild('annstack',buildAnnualStackChart); lazyBuild('hist-ins',()=>renderInsight('hist-insights','hist')); renderAnnualTable(); },
-  breakdown: ()=>{ buildStackChart(); buildTreeTable(); },
+  breakdown: ()=>{ buildStackChart(); buildTreeTable(); buildCostCompareChart(); },
   clients:   ()=>{ renderClientTable(); lazyBuild('clients-bar',buildClientsBarChart); },
   suppliers: ()=>{ renderSupplierTable(); lazyBuild('sup-bar',buildSupplierBarChart); },
   costevo:   ()=>{ renderCostEvoTable(); },
@@ -796,18 +851,22 @@ function renderTabCharts(name){ (TAB_BUILDERS[name]||(() =>{}))(); }
 /* ══════════════════════════════════════════════
    INSIGHT BOX
 ══════════════════════════════════════════════ */
-// Dynamic Q1-YTD insights computed from PL_BY_PERIOD.quarters
-function buildYtdHistInsights(){
-  const data = getAnnualData(); // already Q1 2021–2026 in ytd mode
-  if (!data.length) return ['No Q1 data available.'];
-  const cur = data[data.length-1];                 // 2026 Q1
-  const prev = data[data.length-2];                // 2025 Q1
+// Dynamic period insights computed from PL_BY_PERIOD.quarters (YTD or By-Quarter mode)
+function buildPeriodInsights(){
+  const data = getAnnualData();
+  if (!data.length) return ['No data for the selected quarters.'];
+  const cur = data[data.length-1];
+  const prev = data[data.length-2];
+  const lbl = _periodLabelFor((cur && cur.qs) || []);
+  if (!prev){
+    return [`${lbl} ${cur.year}: revenue ${fmtM(cur.rev)}, net profit ${fmtM(cur.profit)}. No prior year comparison available.`];
+  }
   const byRev = [...data].sort((a,b)=>b.rev-a.rev);
   const byMargin = [...data].filter(d=>d.rev>0).sort((a,b)=>(b.profit/b.rev)-(a.profit/a.rev));
-  const revChgPct = prev && prev.rev ? ((cur.rev-prev.rev)/prev.rev*100) : null;
-  const profChgPct = prev && prev.profit ? ((cur.profit-prev.profit)/Math.abs(prev.profit)*100) : null;
+  const revChgPct = prev.rev ? ((cur.rev-prev.rev)/prev.rev*100) : null;
+  const profChgPct = prev.profit ? ((cur.profit-prev.profit)/Math.abs(prev.profit)*100) : null;
   const curMargin = cur.rev>0 ? cur.profit/cur.rev*100 : null;
-  const prevMargin = prev && prev.rev>0 ? prev.profit/prev.rev*100 : null;
+  const prevMargin = prev.rev>0 ? prev.profit/prev.rev*100 : null;
   const marginDelta = (curMargin!=null && prevMargin!=null) ? (curMargin-prevMargin) : null;
   const bestRev = byRev[0], bestMargin = byMargin[0];
   const fmtSign = (v, unit, decimals=1) => {
@@ -815,21 +874,29 @@ function buildYtdHistInsights(){
     const s = v>0 ? '+' : '';
     return s + v.toFixed(decimals) + unit;
   };
+  const partialTag = cur.partial ? ' (partial)' : '';
   const items = [];
-  items.push(`Q1 ${cur.year} revenue ${fmtM(cur.rev)} vs Q1 ${prev.year} ${fmtM(prev.rev)} — ${fmtSign(revChgPct,'%')} YoY.`);
-  items.push(`Q1 ${cur.year} net profit ${fmtM(cur.profit)} vs Q1 ${prev.year} ${fmtM(prev.profit)} — ${fmtSign(profChgPct,'%',0)} YoY.`);
+  items.push(`${lbl} ${cur.year}${partialTag} revenue ${fmtM(cur.rev)} vs ${lbl} ${prev.year} ${fmtM(prev.rev)} — ${fmtSign(revChgPct,'%')} YoY.`);
+  items.push(`${lbl} ${cur.year}${partialTag} net profit ${fmtM(cur.profit)} vs ${lbl} ${prev.year} ${fmtM(prev.profit)} — ${fmtSign(profChgPct,'%',0)} YoY.`);
   if (marginDelta!=null) {
-    items.push(`Q1 margin ${fmtPct(curMargin)} vs ${fmtPct(prevMargin)} — ${fmtSign(marginDelta,'pp')} change.`);
+    items.push(`${lbl} margin ${fmtPct(curMargin)} vs ${fmtPct(prevMargin)} — ${fmtSign(marginDelta,'pp')} change.`);
   }
-  items.push(`Best Q1 on record: ${bestRev.year} at ${fmtM(bestRev.rev)} revenue. Strongest Q1 margin: ${bestMargin.year} at ${fmtPct(bestMargin.profit/bestMargin.rev*100)}.`);
+  items.push(`Best ${lbl} on record: ${bestRev.year} at ${fmtM(bestRev.rev)} revenue. Strongest ${lbl} margin: ${bestMargin.year} at ${fmtPct(bestMargin.profit/bestMargin.rev*100)}.`);
   return items;
 }
 
 function renderInsight(containerId,key){
   const box=document.getElementById(containerId);
   if(!box)return;
-  const items = (key==='hist' && annualMode==='ytd') ? buildYtdHistInsights() : INSIGHTS[key];
-  const title = (key==='hist' && annualMode==='ytd') ? 'Key Insights — Q1 YTD' : 'Key Insights';
+  const usePeriod = (key==='hist' && annualMode!=='full');
+  const items = usePeriod ? buildPeriodInsights() : INSIGHTS[key];
+  let title = 'Key Insights';
+  if (usePeriod){
+    const data = getAnnualData();
+    const cur = data[data.length-1];
+    const lbl = cur ? _periodLabelFor(cur.qs||[]) : '';
+    title = 'Key Insights — ' + lbl + (annualMode==='ytd' ? ' YTD' : '');
+  }
   box.innerHTML='<div class="insight-title">&#128161; '+title+'</div>'+
     items.map(b=>'<div class="insight-item"><span class="insight-dot">&#9670;</span><span>'+b+'</span></div>').join('');
 }
@@ -837,35 +904,123 @@ function renderInsight(containerId,key){
 /* ══════════════════════════════════════════════
    ANNUAL VIEW TOGGLE
 ══════════════════════════════════════════════ */
-let annualMode = 'full'; // 'full' | 'ytd'
+let annualMode = 'full';                      // 'full' | 'ytd' | 'quarters'
+let annualQuarters = new Set([1,2,3,4]);      // selection in 'quarters' mode, persists across switches
+let annualIncludePartial = false;             // when false (default), rows whose period is not fully complete are dropped
 
-// Build dataset based on current mode. Full=ANNUAL, YTD=Q1 for each year that has quarterly data.
+function _ytdQuartersComplete(){
+  const n = Math.floor((LAST_MONTH || 0) / 3);
+  const out = []; for (let q = 1; q <= n; q++) out.push(q); return out;
+}
+function _isQuarterFullyComplete(year, q){
+  if (year < 2026) return true;
+  return LAST_MONTH >= q*3;
+}
+function _periodLabelFor(qs){
+  if (!qs || !qs.length) return '';
+  if (qs.length === 4) return 'Full year';
+  return 'Q' + qs.join('+Q');
+}
+
+// Unified aggregator: Full→ANNUAL; YTD→sum of fully-complete 2026 quarters; Quarters→sum of selected.
 function getAnnualData(){
-  if (annualMode === 'full') return ANNUAL;
-  const qs = (PL_BY_PERIOD && PL_BY_PERIOD.quarters) || {};
-  const years = [];
-  for (let y = 2021; y <= 2026; y++){
-    const q = qs[y + ' Q1'];
-    if (!q) continue;
-    const rev = q.rev_total || 0;
-    const costs = (q.costs_total || 0) + (q.taxes || 0);
-    years.push({ year: y, rev, costs, profit: rev - costs });
+  if (annualMode === 'full') {
+    const rows = (ANNUAL || []).map(r => ({
+      ...r,
+      partial: (r.year === 2026 && (LAST_MONTH || 0) < 12)
+    }));
+    return annualIncludePartial ? rows : rows.filter(r => !r.partial);
   }
-  return years;
+  const qs = (PL_BY_PERIOD && PL_BY_PERIOD.quarters) || {};
+  const selected = annualMode === 'ytd' ? _ytdQuartersComplete() : [...annualQuarters].sort();
+  if (!selected.length) return [];
+  const rows = [];
+  for (let y = 2021; y <= 2026; y++){
+    let rev=0, costs=0, profit=0, anyPartial=false, missing=false;
+    for (const q of selected){
+      const qd = qs[y+' Q'+q];
+      if (!qd){ missing = true; break; }
+      rev    += qd.rev_total   || 0;
+      costs  += (qd.costs_total || 0) + (qd.taxes || 0);
+      profit += qd.ebit        || 0;
+      if (!_isQuarterFullyComplete(y, q)) anyPartial = true;
+    }
+    if (missing) continue;
+    if (anyPartial && !annualIncludePartial) continue;
+    rows.push({ year:y, rev, costs, profit, partial:anyPartial, qs:selected.slice() });
+  }
+  return rows;
+}
+
+function setAnnualIncludePartial(v){
+  annualIncludePartial = !!v;
+  setAnnualMode(annualMode);
 }
 
 function setAnnualMode(m){
   annualMode = m;
   document.getElementById('pa-full').classList.toggle('on', m==='full');
   document.getElementById('pa-ytd').classList.toggle('on', m==='ytd');
+  const qBtn = document.getElementById('pa-quarters');
+  if (qBtn) qBtn.classList.toggle('on', m==='quarters');
+
+  // Show the quarter-pill row only in 'quarters' mode
+  const qsRow = document.getElementById('pa-qs');
+  if (qsRow) qsRow.style.display = (m==='quarters') ? '' : 'none';
+
+  // Sync quarter-pill on/off from annualQuarters
+  [1,2,3,4].forEach(q => {
+    const b = document.getElementById('pa-q'+q);
+    if (b) b.classList.toggle('on', annualQuarters.has(q));
+  });
+
+  // YTD pill caption reflects the current complete-quarter window
+  const ytdBtn = document.getElementById('pa-ytd');
+  if (ytdBtn){
+    const done = _ytdQuartersComplete();
+    ytdBtn.textContent = done.length ? 'YTD (' + _periodLabelFor(done) + ')' : 'YTD';
+  }
+
+  // Card title
   const title = document.getElementById('annual-card-title');
-  if (title) title.textContent = m==='ytd' ? 'Q1 Performance 2021–2026' : 'Annual Performance 2012–2026';
+  if (title){
+    if (m === 'full') title.textContent = 'Annual Performance 2012–2026';
+    else if (m === 'ytd'){
+      const done = _ytdQuartersComplete();
+      title.textContent = done.length
+        ? _periodLabelFor(done) + ' YTD Performance 2021–2026'
+        : 'YTD Performance — no complete quarter yet';
+    } else {
+      const sel = [...annualQuarters].sort();
+      title.textContent = _periodLabelFor(sel) + ' Performance 2021–2026';
+    }
+  }
+
+  // Partial-quarter legend note — visible only if current dataset has partial rows
+  const note = document.getElementById('pa-partial-note');
+  if (note){
+    const hasPartial = getAnnualData().some(r => r.partial);
+    note.style.display = hasPartial ? '' : 'none';
+  }
+  const chk = document.getElementById('pa-include-partial');
+  if (chk) chk.checked = annualIncludePartial;
+
   // Re-clear & rebuild
   document.getElementById('annual-body').innerHTML='';
   renderAnnualTable();
   delete _built['annstack'];
   lazyBuild('annstack', buildAnnualStackChart);
   renderInsight('hist-insights','hist');
+}
+
+function toggleAnnualQuarter(q){
+  if (annualQuarters.has(q)){
+    if (annualQuarters.size === 1) return;     // prevent deselecting the last one
+    annualQuarters.delete(q);
+  } else {
+    annualQuarters.add(q);
+  }
+  setAnnualMode('quarters');
 }
 
 function setAnnualView(v){
@@ -879,14 +1034,19 @@ function setAnnualView(v){
 
 function buildAnnualStackChart(){
   const cId='annual-stack-chart';
+  const host=document.getElementById(cId);
   const data=getAnnualData();
   const n=data.length;
+  if(!n){
+    host.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3);font-size:var(--t-sm)">No data for the selected quarters. Pick at least one quarter with available data.</div>';
+    return;
+  }
   const cW=gW(cId), PL=72, PR=16, PT=28, PB=44, H=312;
   const iW=cW-PL-PR, iH=H-PT-PB;
   const svg=el('svg',{viewBox:'0 0 '+cW+' '+H,xmlns:NS});
   const g=el('g',{transform:'translate('+PL+','+PT+')'});
   svg.appendChild(g);
-  const gold=gv('--gold'),blue=gv('--blue'),pos=gv('--pos'),neg=gv('--neg'),t2=gv('--t2'),t3=gv('--t3'),b1=gv('--b1');
+  const gold=gv('--gold'),blue=gv('--blue'),pos=gv('--pos'),neg=gv('--neg'),t2=gv('--t2'),t3=gv('--t3'),b1=gv('--b1'),amber=gv('--amber')||gv('--gold');
 
   // Stacked: each bar = costs (blue, bottom) + profit (gold if +, red if -, stacked on top)
   const maxV=Math.max(...data.map(d=>d.rev));
@@ -928,6 +1088,10 @@ function buildAnnualStackChart(){
     const lblY = yS(d.rev) - 6;
     const lblSize = n <= 8 ? 11 : 10;
     g.appendChild(tx(fmtAxis(d.rev),{x:x,y:lblY,'text-anchor':'middle',fill:is26?gold:t2,'font-size':lblSize,'font-family':'IBM Plex Mono,monospace','font-weight':is26?'700':'600'}));
+    // Partial-quarter marker above the revenue label
+    if (d.partial){
+      g.appendChild(tx('\u26A0',{x:x,y:lblY-10,'text-anchor':'middle',fill:amber,'font-size':11,'font-family':'RF Dewi,Inter,sans-serif','font-weight':'700'}));
+    }
   });
 
   // Net profit line
@@ -942,7 +1106,10 @@ function buildAnnualStackChart(){
   data.forEach((d,i)=>{
     const zone=el('rect',{x:i*slotW,y:0,width:slotW,height:iH,fill:'transparent',cursor:'pointer'});
     const margin=d.rev>0?fmtPct(d.profit/d.rev*100):'N/A';
-    const ttTitle = annualMode==='ytd' ? (d.year+' Q1') : d.year;
+    const periodLbl = (annualMode!=='full' && d.qs) ? _periodLabelFor(d.qs) : '';
+    const ttTitle = annualMode==='full'
+      ? d.year
+      : d.year + (periodLbl ? ' · ' + periodLbl : '') + (d.partial ? ' (partial)' : '');
     const html=()=>`<div class="tt-title">${ttTitle}</div>
       <div class="tt-row"><span style="color:${gold}">Revenue</span><span class="tt-val">${fmtM(d.rev)}</span></div>
       <div class="tt-row"><span style="color:${blue}">Costs</span><span class="tt-val">${fmtM(d.costs)}</span></div>
@@ -962,11 +1129,21 @@ function buildAnnualStackChart(){
 function renderAnnualTable(){
   const tbody=document.getElementById('annual-body');
   if(tbody.innerHTML)return;
-  tbody.innerHTML=getAnnualData().map(r=>{
+  const th=document.getElementById('annual-th-year');
+  if(th) th.textContent = (annualMode==='full') ? 'Year' : 'Period';
+  const rows=getAnnualData();
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="5" style="padding:14px;text-align:center;color:var(--t3)">No data for the selected quarters.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>{
     const margin=r.rev>0?((r.profit/r.rev)*100):0;
     const pos=r.profit>=0;
+    const periodLbl = (annualMode!=='full' && r.qs) ? _periodLabelFor(r.qs) : '';
+    const partialMark = r.partial ? ' \u26A0' : '';
+    const label = annualMode==='full' ? r.year : (r.year + (periodLbl?' · '+periodLbl:'') + partialMark);
     return `<tr>
-      <td class="mono bold ${r.year===2026?'gold':''}">${r.year}</td>
+      <td class="mono bold ${r.year===2026?'gold':''}">${label}</td>
       <td class="mono">${fmtM(r.rev)}</td>
       <td class="mono muted">${fmtM(r.costs)}</td>
       <td class="mono ${pos?'pos':'neg'}">${fmtM(r.profit)}</td>
@@ -1285,7 +1462,7 @@ let qView='chart';
 /* ══════════════════════════════════════════════
    BREAKDOWN DATA HELPER — period-aware
 ══════════════════════════════════════════════ */
-let _costTreeMode = 'abs';  // 'abs' | 'pct'
+let _costMode = 'abs';  // 'abs' | 'pctRev' | 'pctCost'
 
 function getBreakdownData() {
   const p = STATE.globalPeriod;
@@ -1373,8 +1550,10 @@ function getBreakdownData() {
 function _updateBreakdownLabels(label) {
   const h = document.getElementById('breakdown-heading');
   const l = document.getElementById('breakdown-period-label');
+  const t = document.getElementById('tree-period-label');
   if (h) h.textContent = `Cost Category Analysis — ${label}`;
   if (l) l.textContent = label;
+  if (t) t.textContent = label;
 }
 
 /* ══════════════════════════════════════════════
@@ -1395,15 +1574,30 @@ function buildStackChart(){
   svg.appendChild(g);
   const t2=gv('--t2'),t3=gv('--t3'),b1=gv('--b1');
   const n=slots.length;
-  const maxV=Math.max(...slots.map(m=>m.costs), 1);
-  const yS=v=>iH-v/maxV*iH;
+
+  // Mode-aware transform: returns plotted magnitude per category value
+  const tr = (v, slot) => {
+    if (_costMode === 'abs') return v;
+    if (_costMode === 'pctRev') return slot.rev > 0 ? v / slot.rev * 100 : 0;
+    return slot.costs > 0 ? v / slot.costs * 100 : 0;  // pctCost
+  };
+  const perSlotTotal = slots.map(s => tr(s.costs, s));
+  const defaultMax = _costMode === 'abs' ? 1 : 100;
+  const maxV = Math.max(...perSlotTotal, defaultMax);
+  const yS = v => iH - v/maxV*iH;
   const slotW=iW/n, bW=Math.min(slotW*0.6,60);
   const cx=i=>i*slotW+slotW/2;
+  const fmtAxisMode = v => _costMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
+  const fmtValMode  = (v, slot) => {
+    if (_costMode === 'abs') return fmtAxis(v);
+    const p = tr(v, slot);
+    return p.toFixed(p>=10?0:1) + '%';
+  };
 
   for(let i=0;i<=4;i++){
     const v=maxV*i/4, y=yS(v);
     g.appendChild(el('line',{x1:0,y1:y,x2:iW,y2:y,stroke:b1,'stroke-width':1}));
-    g.appendChild(tx(fmtAxis(v),{x:-6,y:y+4,'text-anchor':'end',fill:t3,'font-size':CHF.sm,'font-family':'IBM Plex Mono,monospace'}));
+    g.appendChild(tx(fmtAxisMode(v),{x:-6,y:y+4,'text-anchor':'end',fill:t3,'font-size':CHF.sm,'font-family':'IBM Plex Mono,monospace'}));
   }
 
   slots.forEach((m,i)=>{
@@ -1412,7 +1606,9 @@ function buildStackChart(){
     allCats.forEach(cat=>{
       const v=m.cats[cat]||0;
       if(v<=0)return;
-      const h=Math.max(v/maxV*iH,2);
+      const plotted = tr(v, m);
+      if(plotted<=0)return;
+      const h=Math.max(plotted/maxV*iH,2);
       yOff-=h;
       const rect=el('rect',{x,y:yOff,width:bW,height:h,fill:CAT_COLORS[cat]||'#989693',rx:1});
       rect.addEventListener('mousemove',e=>{
@@ -1423,11 +1619,10 @@ function buildStackChart(){
       });
       rect.addEventListener('mouseleave',hideTT);
       g.appendChild(rect);
-      // #A5 — inside label for segments >= 5% of costs
-      const pct = m.costs>0 ? v/m.costs*100 : 0;
-      if(h >= 18 && pct >= 5){
-        const lbl = pct>=10 ? fmtAxis(v) : (pct.toFixed(0)+'%');
-        g.appendChild(tx(lbl,{x:x+bW/2,y:yOff+h/2+4,'text-anchor':'middle',fill:'#fff','font-size':10,'font-family':'IBM Plex Mono,monospace','pointer-events':'none','font-weight':'600','opacity':'.9'}));
+      // Inside-bar label — only if segment is tall enough and meaningful
+      const shareOfCost = m.costs>0 ? v/m.costs*100 : 0;
+      if (h >= 18 && shareOfCost >= 5){
+        g.appendChild(tx(fmtValMode(v, m),{x:x+bW/2,y:yOff+h/2+4,'text-anchor':'middle',fill:'#fff','font-size':10,'font-family':'IBM Plex Mono,monospace','pointer-events':'none','font-weight':'600','opacity':'.9'}));
       }
     });
     g.appendChild(tx(m.name,{x:cx(i),y:iH+28,'text-anchor':'middle',fill:t2,'font-size':CHF.axis,'font-family':'RF Dewi,Inter,sans-serif'}));
@@ -1445,11 +1640,148 @@ function buildStackChart(){
 /* ══════════════════════════════════════════════
    TREE TABLE
 ══════════════════════════════════════════════ */
-function setCostTreeMode(mode) {
-  _costTreeMode = mode;
-  document.getElementById('p-tree-abs').classList.toggle('on', mode === 'abs');
-  document.getElementById('p-tree-pct').classList.toggle('on', mode === 'pct');
+function setCostMode(mode) {
+  _costMode = mode;
+  ['abs','pctRev','pctCost'].forEach(m => {
+    const b = document.getElementById('p-mode-'+m);
+    if (b) b.classList.toggle('on', mode === m);
+  });
+  // Rebuild whichever view is visible; rebuild both cheaply for consistency
+  buildStackChart();
   buildTreeTable();
+  buildCostCompareChart();
+}
+
+/* ══════════════════════════════════════════════
+   COST BREAKDOWN COMPARISON — last 5 years, Full Year or by Quarter
+══════════════════════════════════════════════ */
+let _costComparePeriod = 'full'; // 'full' | 'Q1' | 'Q2' | 'Q3' | 'Q4'
+
+function setCostComparePeriod(p) {
+  _costComparePeriod = p;
+  ['full','Q1','Q2','Q3','Q4'].forEach(k => {
+    const id = 'pcc-' + (k === 'full' ? 'full' : k.toLowerCase());
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('on', k === p);
+  });
+  buildCostCompareChart();
+}
+
+function _isPeriodFullyComplete(year, p) {
+  if (year < 2026) return true;
+  const lm = LAST_MONTH || 0;
+  if (p === 'full') return lm >= 12;
+  const q = parseInt(p.slice(1));
+  return lm >= q * 3;
+}
+
+function _ccPeriodData(year, p) {
+  if (p === 'full') {
+    const y = PL_BY_PERIOD && PL_BY_PERIOD.years && PL_BY_PERIOD.years[year];
+    if (!y) return null;
+    return { rev: y.rev_total || 0, costs: y.costs_total || 0, cats: y.costs_by_cat || {} };
+  }
+  const q = PL_BY_PERIOD && PL_BY_PERIOD.quarters && PL_BY_PERIOD.quarters[year + ' ' + p];
+  if (!q) return null;
+  return { rev: q.rev_total || 0, costs: q.costs_total || 0, cats: q.costs_by_cat || {} };
+}
+
+function buildCostCompareChart() {
+  const cId = 'cost-compare-chart';
+  const host = document.getElementById(cId);
+  if (!host) return;
+  const modeHint = document.getElementById('pcc-mode-hint');
+  if (modeHint) modeHint.textContent = _costMode === 'abs' ? 'absolute rubles' : (_costMode === 'pctRev' ? '% of revenue' : '% of cost');
+
+  const endYear = 2026;
+  const years = [endYear-4, endYear-3, endYear-2, endYear-1, endYear];
+  const slots = [];
+  let anyPartial = false;
+  years.forEach(y => {
+    const d = _ccPeriodData(y, _costComparePeriod);
+    if (!d) return;
+    const partial = !_isPeriodFullyComplete(y, _costComparePeriod);
+    if (partial) anyPartial = true;
+    slots.push({ name: y + (partial ? ' ⚠' : ''), year: y, rev: d.rev, costs: d.costs, cats: d.cats, partial });
+  });
+  const partialNote = document.getElementById('pcc-partial-note');
+  if (partialNote) partialNote.style.display = anyPartial ? '' : 'none';
+
+  if (!slots.length) {
+    host.innerHTML = '<p style="color:var(--t3);padding:20px">No data for this period across the last 5 years</p>';
+    const lg = document.getElementById('cc-legend'); if (lg) lg.innerHTML = '';
+    return;
+  }
+
+  // Union of categories with any positive value
+  const catSet = {};
+  slots.forEach(s => Object.entries(s.cats).forEach(([k,v]) => { if (v>0) catSet[k] = (catSet[k]||0) + v; }));
+  const allCats = Object.keys(catSet).sort((a,b) => (catSet[b]||0) - (catSet[a]||0));
+
+  const cW = gW(cId), PL = 80, PR = 16, PT = 20, PB = 42, H = 320;
+  const iW = cW - PL - PR, iH = H - PT - PB;
+  const svg = el('svg', { viewBox: '0 0 ' + cW + ' ' + H, xmlns: NS });
+  const g = el('g', { transform: 'translate(' + PL + ',' + PT + ')' });
+  svg.appendChild(g);
+  const t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1'), amber = gv('--amber') || '#f0ad4e';
+
+  const tr = (v, slot) => {
+    if (_costMode === 'abs') return v;
+    if (_costMode === 'pctRev')  return slot.rev   > 0 ? v / slot.rev   * 100 : 0;
+    return                            slot.costs > 0 ? v / slot.costs * 100 : 0;
+  };
+  const perSlotTotal = slots.map(s => tr(s.costs, s));
+  const defaultMax = _costMode === 'abs' ? 1 : 100;
+  const maxV = Math.max(...perSlotTotal, defaultMax);
+  const yS = v => iH - v / maxV * iH;
+  const n = slots.length;
+  const slotW = iW / n, bW = Math.min(slotW * 0.6, 70);
+  const cx = i => i * slotW + slotW / 2;
+  const fmtAxisMode = v => _costMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
+  const fmtValMode = (v, slot) => _costMode === 'abs' ? fmtAxis(v) : (tr(v, slot).toFixed(tr(v,slot)>=10?0:1) + '%');
+
+  for (let i = 0; i <= 4; i++) {
+    const v = maxV * i / 4, y = yS(v);
+    g.appendChild(el('line', { x1: 0, y1: y, x2: iW, y2: y, stroke: b1, 'stroke-width': 1 }));
+    g.appendChild(tx(fmtAxisMode(v), { x: -6, y: y + 4, 'text-anchor': 'end', fill: t3, 'font-size': CHF.sm, 'font-family': 'IBM Plex Mono,monospace' }));
+  }
+
+  slots.forEach((m, i) => {
+    let yOff = iH;
+    const x = cx(i) - bW / 2;
+    allCats.forEach(cat => {
+      const v = m.cats[cat] || 0;
+      if (v <= 0) return;
+      const plotted = tr(v, m);
+      if (plotted <= 0) return;
+      const h = Math.max(plotted / maxV * iH, 2);
+      yOff -= h;
+      const rect = el('rect', { x, y: yOff, width: bW, height: h, fill: CAT_COLORS[cat] || '#989693', rx: 1 });
+      rect.addEventListener('mousemove', e => {
+        showTT(`<div class="tt-title">${m.year} ${_costComparePeriod === 'full' ? 'FY' : _costComparePeriod}${m.partial ? ' (partial)' : ''} · ${cat}</div>
+          <div class="tt-row"><span>Amount</span><span class="tt-val">${fmtM(v)}</span></div>
+          <div class="tt-row"><span>Of costs</span><span class="tt-val">${m.costs>0?(v/m.costs*100).toFixed(1)+'%':'—'}</span></div>
+          <div class="tt-row"><span>Of revenue</span><span class="tt-val">${m.rev>0?(v/m.rev*100).toFixed(1)+'%':'—'}</span></div>`, e);
+      });
+      rect.addEventListener('mouseleave', hideTT);
+      g.appendChild(rect);
+      const shareOfCost = m.costs > 0 ? v / m.costs * 100 : 0;
+      if (h >= 18 && shareOfCost >= 5) {
+        g.appendChild(tx(fmtValMode(v, m), { x: x + bW / 2, y: yOff + h / 2 + 4, 'text-anchor': 'middle', fill: '#fff', 'font-size': 10, 'font-family': 'IBM Plex Mono,monospace', 'pointer-events': 'none', 'font-weight': '600', opacity: '.9' }));
+      }
+    });
+    g.appendChild(tx(m.name, { x: cx(i), y: iH + 28, 'text-anchor': 'middle', fill: m.partial ? amber : t2, 'font-size': CHF.axis, 'font-family': 'RF Dewi,Inter,sans-serif' }));
+  });
+
+  host.innerHTML = '';
+  host.appendChild(svg);
+
+  const leg = document.getElementById('cc-legend');
+  if (leg) {
+    leg.innerHTML = Object.entries(CAT_COLORS).filter(([c]) => allCats.includes(c)).map(([c, col]) =>
+      `<div class="leg-item"><div class="leg-dot" style="background:${col}"></div>${c}</div>`
+    ).join('');
+  }
 }
 
 function buildTreeTable(){
@@ -1460,52 +1792,47 @@ function buildTreeTable(){
   _updateBreakdownLabels(bd.label);
 
   const { slots, catTotals, revTotal } = bd;
-  const isPct = _costTreeMode === 'pct';
+  const mode = _costMode;  // 'abs' | 'pctRev' | 'pctCost'
   const totalCosts = Object.values(catTotals).reduce((a,b) => a + (b > 0 ? b : 0), 0);
+
+  // Per-slot cell: value of category `cat` formatted for the current mode
+  const slotCell = (v, s) => {
+    if (mode === 'abs')     return fmtM(v);
+    if (mode === 'pctRev')  return s.rev   > 0 ? (v / s.rev   * 100).toFixed(1) + '%' : '—';
+    /* pctCost */           return s.costs > 0 ? (v / s.costs * 100).toFixed(1) + '%' : '—';
+  };
+  // Total-column cell for a row (total across slots)
+  const totalCellFor = (total) => {
+    if (mode === 'abs')     return fmtM(total);
+    if (mode === 'pctRev')  return revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) + '%' : '—';
+    /* pctCost */           return totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) + '%' : '—';
+  };
 
   // Build dynamic column headers
   const colHeaders = slots.map(s => `<th>${s.name}</th>`).join('');
-  if (thead) thead.innerHTML = `<tr><th>Category</th>${colHeaders}<th>Total</th><th>Share</th>${isPct ? '<th>% of Rev</th>' : ''}</tr>`;
-
-  // fmt cell
-  const fmt = (v, rev) => isPct
-    ? (rev > 0 ? (v / rev * 100).toFixed(1) + '%' : '—')
-    : fmtM(v);
+  if (thead){
+    // In abs mode we keep an extra "% of Rev" tail column; in pct modes it's redundant
+    const tailHeader = mode === 'abs' ? '<th>% of Rev</th>' : '';
+    thead.innerHTML = `<tr><th>Category</th>${colHeaders}<th>Total</th><th>Share of Costs</th>${tailHeader}</tr>`;
+  }
 
   let rows = '';
-  // Total row
-  const totalCells = slots.map(s => {
-    const v = isPct ? (s.rev > 0 ? (s.costs / s.rev * 100).toFixed(1) + '%' : '—') : fmtM(s.costs);
-    return `<td class="mono bold">${v}</td>`;
-  }).join('');
-  const totalPctRevCell = isPct ? '' : `<td class="mono bold gold">${revTotal > 0 ? (totalCosts / revTotal * 100).toFixed(1) + '%' : '—'}</td>`;
-  rows += `<tr class="tree-header"><td>TOTAL COSTS</td>${totalCells}<td class="mono bold gold">${isPct ? (revTotal > 0 ? (totalCosts / revTotal * 100).toFixed(1) + '%' : '—') : fmtM(totalCosts)}</td><td class="mono bold gold">100%</td>${totalPctRevCell}</tr>`;
+  // TOTAL COSTS row
+  const totalCells = slots.map(s => `<td class="mono bold">${slotCell(s.costs, s)}</td>`).join('');
+  const totalTailCell = mode === 'abs'
+    ? `<td class="mono bold gold">${revTotal > 0 ? (totalCosts / revTotal * 100).toFixed(1) + '%' : '—'}</td>`
+    : '';
+  rows += `<tr class="tree-header"><td>TOTAL COSTS</td>${totalCells}<td class="mono bold gold">${totalCellFor(totalCosts)}</td><td class="mono bold gold">100%</td>${totalTailCell}</tr>`;
 
   // Category rows sorted by total desc
   Object.entries(catTotals).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]).forEach(([cat, total]) => {
-    const share = totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) : '0.0';
-    const pctRev = revTotal > 0 ? (total / revTotal * 100).toFixed(1) : '—';
-    const mCells = slots.map(s => {
-      const v = s.cats[cat] || 0;
-      return `<td class="mono dim">${isPct ? (s.rev > 0 ? (v / s.rev * 100).toFixed(1) + '%' : '—') : fmtM(v)}</td>`;
-    }).join('');
-    const totalCell = isPct ? (revTotal > 0 ? (total / revTotal * 100).toFixed(1) + '%' : '—') : fmtM(total);
-    const pctRevCell = isPct ? '' : `<td class="mono muted">${pctRev}%</td>`;
-    rows += `<tr class="tree-row"><td style="padding-left:20px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat}</td>${mCells}<td class="mono">${totalCell}</td><td class="mono muted">${share}%</td>${pctRevCell}</tr>`;
+    const share  = totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) : '0.0';
+    const pctRev = revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) : null;
+    const mCells = slots.map(s => `<td class="mono dim">${slotCell(s.cats[cat] || 0, s)}</td>`).join('');
+    const tailCell = mode === 'abs' ? `<td class="mono muted">${pctRev==null?'—':pctRev+'%'}</td>` : '';
+    rows += `<tr class="tree-row"><td style="padding-left:20px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat}</td>${mCells}<td class="mono">${totalCellFor(total)}</td><td class="mono muted">${share}%</td>${tailCell}</tr>`;
   });
   tbody.innerHTML = rows;
-}
-
-/* ══════════════════════════════════════════════
-   COST VIEW TOGGLE
-══════════════════════════════════════════════ */
-function setCostView(v){
-  document.getElementById('stacked-view').style.display=v==='stacked'?'':'none';
-  document.getElementById('tree-view').style.display=v==='tree'?'':'none';
-  document.getElementById('p-stacked').classList.toggle('on',v==='stacked');
-  document.getElementById('p-tree').classList.toggle('on',v==='tree');
-  if(v==='stacked') buildStackChart();
-  if(v==='tree')    buildTreeTable();
 }
 
 /* ══════════════════════════════════════════════
@@ -1548,6 +1875,7 @@ async function exportPDF(){
 ══════════════════════════════════════════════ */
 const CAT_COLORS_CL = ['#d61393','#6c2275','#51ac8a','#de545c','#8e4da8','#f8bb86','#5b8ab7','#c08c7a','#9fc5b2','#989693'];
 let clientFilter = STATE.clientFilter;
+let selectedClient = null;
 
 function getClientPeriodData(client, filter) {
   const yrs = client.years;
@@ -1627,9 +1955,11 @@ function renderClientTable() {
     // Sparkline: 6 year bars (2021-2026) as tiny SVG
     const spark = buildSparkline(c);
     const active26 = c.years && c.years['2026'] && c.years['2026'].t > 0;
-    return `<tr>
+    const sel = selectedClient === c.n ? ' selected' : '';
+    const nameJson = JSON.stringify(c.n);
+    return `<tr class="client-row${sel}" onclick='selectClient(${nameJson})' title="Click to see 5-year trend">
       <td class="mono dim">${i+1}</td>
-      <td class="bold" title="${c.n}">${c.n.length>40?c.n.slice(0,39)+'…':c.n}${active26?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-left:6px;vertical-align:middle" title="Active in 2026"></span>':''}</td>
+      <td class="bold">${c.n.length>40?c.n.slice(0,39)+'…':c.n}${active26?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-left:6px;vertical-align:middle" title="Active in 2026"></span>':''}</td>
       <td class="mono gold">${fmtM(c._v)}</td>
       <td class="mono muted">${share}</td>
       <td>${yoyStr}</td>
@@ -1701,11 +2031,126 @@ function buildClientsBarChart() {
   document.getElementById(cId).appendChild(svg);
 }
 
+/* ── Per-client 5-year trend drill-down ── */
+function selectClient(name){
+  const c = TOP_CLIENTS.find(x => x.n === name);
+  if (!c) return;
+  // If clicking the already-selected client, deselect
+  if (selectedClient === name){ closeClientDetail(); return; }
+  selectedClient = name;
+  renderClientTable();
+  const card = document.getElementById('client-detail-card');
+  card.style.display = '';   // must be visible before measuring chart width
+  renderClientDetail(c);
+  requestAnimationFrame(() => card.scrollIntoView({behavior:'smooth', block:'nearest'}));
+}
+function closeClientDetail(){
+  selectedClient = null;
+  document.getElementById('client-detail-card').style.display = 'none';
+  renderClientTable();
+}
+
+function renderClientDetail(c){
+  const years = [2022,2023,2024,2025,2026];
+  const vals = years.map(yr => {
+    const y = c.years[String(yr)];
+    const partial = (yr === 2026);
+    return { year: yr, v: (y && y.t) || 0, partial };
+  });
+  const total = vals.reduce((s,d)=>s+d.v,0);
+  const nonZero = vals.filter(d=>d.v>0);
+  const avg = nonZero.length ? total/nonZero.length : 0;
+  const best = nonZero.slice().sort((a,b)=>b.v-a.v)[0];
+  const last = vals[vals.length-1];
+  const prev = vals[vals.length-2];
+  const yoy = (prev && prev.v>0) ? (last.v-prev.v)/prev.v*100 : null;
+  const yoyStr = yoy==null ? '—' : (yoy>=0?'+':'') + yoy.toFixed(0) + '%';
+  const yoyCol = yoy==null ? 'var(--t3)' : (yoy>=0 ? 'var(--pos)' : 'var(--neg)');
+
+  document.getElementById('client-detail-title').textContent = c.n + ' — 5-Year Trend (2022–2026)';
+  const stat = (label, value, color) =>
+    `<div><div style="font-size:var(--t-xs);color:var(--t3);text-transform:uppercase;letter-spacing:.5px">${label}</div>` +
+    `<div class="mono bold" style="color:${color||'var(--t1)'};font-size:var(--t-md)">${value}</div></div>`;
+  document.getElementById('client-detail-stats').innerHTML =
+    stat('5-yr total', fmtM(total)) +
+    stat('Avg / active year', fmtM(avg)) +
+    stat('Best year', best ? best.year + ' · ' + fmtM(best.v) : '—', 'var(--gold)') +
+    stat('2026 vs 2025 YoY', yoyStr + ' <span style="font-size:var(--t-xs);color:var(--t3)">(2026 partial)</span>', yoyCol);
+
+  buildClientTrendChart(vals);
+}
+
+function buildClientTrendChart(vals){
+  const cId = 'client-trend-chart';
+  const host = document.getElementById(cId);
+  const n = vals.length;
+  const cW = gW(cId), PL = 72, PR = 16, PT = 28, PB = 40, H = 240;
+  const iW = cW - PL - PR, iH = H - PT - PB;
+  const svg = el('svg', {viewBox:'0 0 '+cW+' '+H, xmlns:NS});
+  const g = el('g', {transform:'translate('+PL+','+PT+')'});
+  svg.appendChild(g);
+  const gold = gv('--gold'), pos = gv('--pos'), t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1');
+  const amber = gv('--amber') || gold;
+
+  const maxV = Math.max(...vals.map(d=>d.v), 1);
+  const yS = v => iH - (v/maxV)*iH;
+  const slotW = iW/n, bW = Math.min(slotW*0.62, 54);
+  const cx = i => i*slotW + slotW/2;
+
+  // Grid + axis
+  for (let i=0;i<=4;i++){
+    const v = maxV*i/4, y = yS(v);
+    g.appendChild(el('line',{x1:0,y1:y,x2:iW,y2:y,stroke:b1,'stroke-width':1}));
+    g.appendChild(tx(fmtAxis(v),{x:-6,y:y+4,'text-anchor':'end',fill:t3,'font-size':10,'font-family':'IBM Plex Mono,monospace'}));
+  }
+
+  vals.forEach((d,i)=>{
+    const x = cx(i);
+    const bH = Math.max(iH - yS(d.v), d.v>0 ? 2 : 0);
+    const fill = d.partial ? amber : gold;
+    g.appendChild(el('rect',{x:x-bW/2,y:yS(d.v),width:bW,height:bH,fill,rx:3,opacity:d.v>0?0.9:0.25}));
+    // Year label
+    g.appendChild(tx(d.year,{x:x,y:iH+16,'text-anchor':'middle',fill:d.partial?amber:t2,'font-size':11,'font-family':'RF Dewi,Inter,sans-serif','font-weight':d.partial?'700':'400'}));
+    // Partial marker
+    if (d.partial){
+      g.appendChild(tx('\u26A0',{x:x,y:iH+30,'text-anchor':'middle',fill:amber,'font-size':10,'font-family':'RF Dewi,Inter,sans-serif'}));
+    }
+    // Value above bar
+    if (d.v>0){
+      g.appendChild(tx(fmtAxis(d.v),{x:x,y:yS(d.v)-6,'text-anchor':'middle',fill:t2,'font-size':11,'font-family':'IBM Plex Mono,monospace','font-weight':'600'}));
+    }
+  });
+
+  // YoY trendline (dashed) connecting bar tops where value > 0
+  let lp='', started=false;
+  vals.forEach((d,i)=>{
+    if (d.v<=0) return;
+    const X = cx(i), Y = yS(d.v);
+    lp += (started?'L':'M') + X + ' ' + Y;
+    started = true;
+  });
+  if (lp) g.appendChild(el('path',{d:lp,stroke:pos,'stroke-width':2,fill:'none','stroke-dasharray':'4 3','stroke-linejoin':'round'}));
+  vals.forEach((d,i)=>{ if (d.v>0) g.appendChild(el('circle',{cx:cx(i),cy:yS(d.v),r:3,fill:pos})); });
+
+  // Hover zones
+  vals.forEach((d,i)=>{
+    const zone = el('rect',{x:i*slotW,y:0,width:slotW,height:iH,fill:'transparent',cursor:'pointer'});
+    const html = () => `<div class="tt-title">${d.year}${d.partial?' (partial)':''}</div>` +
+      `<div class="tt-row"><span style="color:${gold}">Revenue</span><span class="tt-val">${fmtM(d.v)}</span></div>`;
+    addHover(zone, html);
+    g.appendChild(zone);
+  });
+
+  host.innerHTML = '';
+  host.appendChild(svg);
+}
+
 /* ══════════════════════════════════════════════
    SUPPLIERS TAB
 ══════════════════════════════════════════════ */
-let supCatFilter = STATE.supCatFilter;
+let supCatFilter = new Set(['food','rent','mkt','other']);
 let supPeriodFilter = STATE.supPeriodFilter;
+let selectedSupplier = null;
 const CAT_GROUP = {
   'food': ['Food','Wine and Alcohol','Beverages'],
   'rent': ['Rent & Maintenance'],
@@ -1762,22 +2207,42 @@ function getSupplierPrevAmount(sup, period) {
   return getSupplierAmount(sup, String(yr-1));
 }
 
-function supCatMatch(sup, catFilter) {
-  if (catFilter === 'all') return true;
-  const allowed = CAT_GROUP[catFilter] || [];
-  // Match on main category only (prevents Food suppliers appearing under Other just because
-  // they have a small Maintenance line)
-  return allowed.includes(sup.cat);
+function supCatMatch(sup, catSet) {
+  if (!catSet || !catSet.size) return false;
+  for (const g of catSet) {
+    if ((CAT_GROUP[g] || []).includes(sup.cat)) return true;
+  }
+  return false;
 }
 
-function setSupplierCatFilter(f) {
-  supCatFilter = f;
-  ['all-cats','food','rent','mkt','other'].forEach(k => {
+function _syncSupCatPills() {
+  ['food','rent','mkt','other'].forEach(k => {
     const btn = document.getElementById('psp-'+k);
-    if (btn) btn.classList.toggle('on', (k==='all-cats'?'all':k) === f || (k==='all-cats' && f==='all'));
+    if (btn) btn.classList.toggle('on', supCatFilter.has(k));
   });
+  const allBtn = document.getElementById('psp-all-cats');
+  if (allBtn) allBtn.classList.toggle('on', supCatFilter.size === 4);
+}
+
+function _supCatChanged() {
+  _syncSupCatPills();
   renderSupplierTable();
   delete _built['sup-bar']; lazyBuild('sup-bar',buildSupplierBarChart);
+}
+
+function toggleSupplierCat(g) {
+  if (supCatFilter.has(g)) {
+    if (supCatFilter.size === 1) return;  // guard: last one stays on
+    supCatFilter.delete(g);
+  } else {
+    supCatFilter.add(g);
+  }
+  _supCatChanged();
+}
+
+function selectAllSupplierCats() {
+  supCatFilter = new Set(['food','rent','mkt','other']);
+  _supCatChanged();
 }
 
 function setSupplierPeriodFilter(f) {
@@ -1814,7 +2279,9 @@ function renderSupplierTable() {
     const yoyStr = yoy!==null ? (yoy>=0?`<span class="pos no-arrow">+${yoy.toFixed(0)}%</span>`:`<span class="neg no-arrow">${yoy.toFixed(0)}%</span>`) : '<span class="dim">—</span>';
     const catBadge = `<span class="rb" style="background:rgba(79,142,247,.12);color:var(--blue);white-space:nowrap">${s.cat}</span>`;
     const spark = buildSupplierSparkline(s);
-    return `<tr>
+    const sel = selectedSupplier === s.n ? ' selected' : '';
+    const nameJson = JSON.stringify(s.n);
+    return `<tr class="supplier-row${sel}" onclick='selectSupplier(${nameJson})' title="Click to see 5-year trend">
       <td class="mono dim">${i+1}</td>
       <td class="bold">${s.n.length>35?s.n.slice(0,34)+'…':s.n}</td>
       <td>${catBadge}</td>
@@ -1902,6 +2369,120 @@ function buildSupplierBarChart() {
   document.getElementById(cId).appendChild(svg);
 }
 
+/* ── Per-supplier 5-year trend drill-down ── */
+function selectSupplier(name){
+  const s = TOP_SUPPLIERS.find(x => x.n === name);
+  if (!s) return;
+  if (selectedSupplier === name){ closeSupplierDetail(); return; }
+  selectedSupplier = name;
+  renderSupplierTable();
+  const card = document.getElementById('supplier-detail-card');
+  card.style.display = '';
+  renderSupplierDetail(s);
+  requestAnimationFrame(() => card.scrollIntoView({behavior:'smooth', block:'nearest'}));
+}
+function closeSupplierDetail(){
+  selectedSupplier = null;
+  document.getElementById('supplier-detail-card').style.display = 'none';
+  renderSupplierTable();
+}
+
+function _supYearTotal(sup, yr){
+  let t = 0;
+  for (const cd of Object.values(sup.cats)){
+    t += (cd.y[String(yr)]?.t || 0);
+  }
+  return t;
+}
+
+function renderSupplierDetail(s){
+  const years = [2022,2023,2024,2025,2026];
+  const vals = years.map(yr => ({ year: yr, v: _supYearTotal(s, yr), partial: yr === 2026 }));
+  const total = vals.reduce((a,d)=>a+d.v, 0);
+  const nonZero = vals.filter(d=>d.v>0);
+  const avg = nonZero.length ? total/nonZero.length : 0;
+  const best = nonZero.slice().sort((a,b)=>b.v-a.v)[0];
+  const last = vals[vals.length-1];
+  const prev = vals[vals.length-2];
+  const yoy = (prev && prev.v>0) ? (last.v-prev.v)/prev.v*100 : null;
+  const yoyStr = yoy==null ? '—' : (yoy>=0?'+':'') + yoy.toFixed(0) + '%';
+  const yoyCol = yoy==null ? 'var(--t3)' : (yoy>=0 ? 'var(--neg)' : 'var(--pos)'); // for suppliers, lower spend is "good"
+
+  document.getElementById('supplier-detail-title').textContent = s.n + ' — 5-Year Trend (2022–2026) · ' + (s.cat || '—');
+  const stat = (label, value, color) =>
+    `<div><div style="font-size:var(--t-xs);color:var(--t3);text-transform:uppercase;letter-spacing:.5px">${label}</div>` +
+    `<div class="mono bold" style="color:${color||'var(--t1)'};font-size:var(--t-md)">${value}</div></div>`;
+  document.getElementById('supplier-detail-stats').innerHTML =
+    stat('5-yr spend', fmtM(total)) +
+    stat('Avg / active year', fmtM(avg)) +
+    stat('Peak year', best ? best.year + ' · ' + fmtM(best.v) : '—', 'var(--neg)') +
+    stat('2026 vs 2025 YoY', yoyStr + ' <span style="font-size:var(--t-xs);color:var(--t3)">(2026 partial)</span>', yoyCol);
+
+  buildSupplierTrendChart(vals, s);
+}
+
+function buildSupplierTrendChart(vals, sup){
+  const cId = 'supplier-trend-chart';
+  const host = document.getElementById(cId);
+  const n = vals.length;
+  const cW = gW(cId), PL = 72, PR = 16, PT = 28, PB = 40, H = 240;
+  const iW = cW - PL - PR, iH = H - PT - PB;
+  const svg = el('svg', {viewBox:'0 0 '+cW+' '+H, xmlns:NS});
+  const g = el('g', {transform:'translate('+PL+','+PT+')'});
+  svg.appendChild(g);
+  const t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1'), neg = gv('--neg'), pos = gv('--pos');
+  const amber = gv('--amber') || gv('--gold');
+  const barCol = SUP_CAT_COLORS2[sup && sup.cat] || neg;
+
+  const maxV = Math.max(...vals.map(d=>d.v), 1);
+  const yS = v => iH - (v/maxV)*iH;
+  const slotW = iW/n, bW = Math.min(slotW*0.62, 54);
+  const cx = i => i*slotW + slotW/2;
+
+  for (let i=0;i<=4;i++){
+    const v = maxV*i/4, y = yS(v);
+    g.appendChild(el('line',{x1:0,y1:y,x2:iW,y2:y,stroke:b1,'stroke-width':1}));
+    g.appendChild(tx(fmtAxis(v),{x:-6,y:y+4,'text-anchor':'end',fill:t3,'font-size':10,'font-family':'IBM Plex Mono,monospace'}));
+  }
+
+  vals.forEach((d,i)=>{
+    const x = cx(i);
+    const bH = Math.max(iH - yS(d.v), d.v>0 ? 2 : 0);
+    const fill = d.partial ? amber : barCol;
+    g.appendChild(el('rect',{x:x-bW/2,y:yS(d.v),width:bW,height:bH,fill,rx:3,opacity:d.v>0?0.9:0.25}));
+    g.appendChild(tx(d.year,{x:x,y:iH+16,'text-anchor':'middle',fill:d.partial?amber:t2,'font-size':11,'font-family':'RF Dewi,Inter,sans-serif','font-weight':d.partial?'700':'400'}));
+    if (d.partial){
+      g.appendChild(tx('\u26A0',{x:x,y:iH+30,'text-anchor':'middle',fill:amber,'font-size':10,'font-family':'RF Dewi,Inter,sans-serif'}));
+    }
+    if (d.v>0){
+      g.appendChild(tx(fmtAxis(d.v),{x:x,y:yS(d.v)-6,'text-anchor':'middle',fill:t2,'font-size':11,'font-family':'IBM Plex Mono,monospace','font-weight':'600'}));
+    }
+  });
+
+  // Trend line connecting bar tops (non-zero years)
+  let lp='', started=false;
+  vals.forEach((d,i)=>{
+    if (d.v<=0) return;
+    const X = cx(i), Y = yS(d.v);
+    lp += (started?'L':'M') + X + ' ' + Y;
+    started = true;
+  });
+  if (lp) g.appendChild(el('path',{d:lp,stroke:pos,'stroke-width':2,fill:'none','stroke-dasharray':'4 3','stroke-linejoin':'round'}));
+  vals.forEach((d,i)=>{ if (d.v>0) g.appendChild(el('circle',{cx:cx(i),cy:yS(d.v),r:3,fill:pos})); });
+
+  // Hover zones
+  vals.forEach((d,i)=>{
+    const zone = el('rect',{x:i*slotW,y:0,width:slotW,height:iH,fill:'transparent',cursor:'pointer'});
+    const html = () => `<div class="tt-title">${d.year}${d.partial?' (partial)':''}</div>` +
+      `<div class="tt-row"><span style="color:${barCol}">Spend</span><span class="tt-val">${fmtM(d.v)}</span></div>`;
+    addHover(zone, html);
+    g.appendChild(zone);
+  });
+
+  host.innerHTML = '';
+  host.appendChild(svg);
+}
+
 /* ══════════════════════════════════════════════
    COST EVOLUTION TAB
 ══════════════════════════════════════════════ */
@@ -1915,30 +2496,65 @@ const CE_COLORS = {
   'IT':'#5b8ab7','Beverages':'#9fc5b2','General expenses':'#989693','Aprons':'#b3a58f'
 };
 let costEvoView = STATE.costEvoView;
+let _ceMode = 'abs';  // 'abs' | 'pctRev' | 'pctCost'
+
+function _ceYearCostTotal(yr) {
+  const y = PL_BY_PERIOD && PL_BY_PERIOD.years && PL_BY_PERIOD.years[yr];
+  if (y && y.costs_total) return y.costs_total;
+  // Fallback: sum CAT_EVO totals for that year
+  let s = 0;
+  for (const c of CE_CATS) s += (CAT_EVO[c]?.[yr]?.t || 0);
+  return s;
+}
+
+function setCostEvoMode(mode) {
+  _ceMode = mode;
+  ['abs','pctRev','pctCost'].forEach(m => {
+    const b = document.getElementById('ce-mode-' + m);
+    if (b) b.classList.toggle('on', m === mode);
+  });
+  const tail1 = document.getElementById('ce-th-tail1');
+  if (tail1) tail1.textContent = mode === 'abs' ? '% Rev 2025' : (mode === 'pctRev' ? '% Rev 2025' : '% Cost 2025');
+  renderCostEvoTable();
+}
 
 function renderCostEvoTable() {
   const tbody = document.getElementById('costevo-body');
   if (!tbody) return;
+  const yrs = ['2021','2022','2023','2024','2025','2026'];
+  // Pre-compute year denominators (rev or total cost)
+  const denom = {};
+  yrs.forEach(yr => {
+    denom[yr] = _ceMode === 'pctRev' ? (REV_TOTALS[yr] || 0)
+              : _ceMode === 'pctCost' ? _ceYearCostTotal(yr)
+              : 0;
+  });
+  const fmtCell = (v, yr) => {
+    if (!(v > 0)) return '—';
+    if (_ceMode === 'abs') return fmtM(v);
+    const d = denom[yr];
+    return d > 0 ? (v / d * 100).toFixed(1) + '%' : '—';
+  };
   tbody.innerHTML = CE_CATS.sort((a,b) => {
     const t25a = CAT_EVO[a]?.['2025']?.t||0, t25b = CAT_EVO[b]?.['2025']?.t||0;
     return t25b - t25a;
   }).map(cat => {
     const d = CAT_EVO[cat];
-    const yrs = ['2021','2022','2023','2024','2025','2026'];
     const cells = yrs.map(yr => {
       const v = d[yr]?.t||0;
-      return `<td class="mono ${v>0?'':'dim'}">${v>0?fmtM(v):'—'}</td>`;
+      return `<td class="mono ${v>0?'':'dim'}">${fmtCell(v, yr)}</td>`;
     }).join('');
     const v25 = d['2025']?.t||0, v24 = d['2024']?.t||0;
-    const rev25 = REV_TOTALS['2025']||1;
-    const pctRev = v25>0 ? (v25/rev25*100).toFixed(1)+'%' : '—';
-    // #A16 — YoY ₽ delta + % separately
+    // Tail column 1: share of 2025 revenue (abs + pctRev modes) or share of 2025 total cost (pctCost mode)
+    const tailDenom = _ceMode === 'pctCost' ? _ceYearCostTotal('2025') : (REV_TOTALS['2025']||0);
+    const tailPct = (v25>0 && tailDenom>0) ? (v25/tailDenom*100).toFixed(1)+'%' : '—';
+    // YoY ₽ delta + % always based on absolute values (meaningful in every mode)
     const delta = (v24>0 && v25>0) ? (v25-v24) : null;
     const yoyPct = (v24>0 && v25>0) ? ((v25-v24)/v24*100) : null;
     const deltaStr = delta!==null ? `<span class="${delta>=0?'pos':'neg'} no-arrow">${delta>=0?'+':''}${fmtM(delta)}</span>` : '—';
     const yoyStr = yoyPct!==null ? `<span class="${yoyPct>=0?'pos':'neg'} no-arrow">${yoyPct>=0?'+':''}${yoyPct.toFixed(1)}%</span>` : '—';
     const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CE_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>`;
-    return `<tr><td class="bold">${dot}${cat}</td>${cells}<td class="mono muted">${pctRev}</td><td>${deltaStr}</td><td>${yoyStr}</td></tr>`;
+    return `<tr><td class="bold">${dot}${cat}</td>${cells}<td class="mono muted">${tailPct}</td><td>${deltaStr}</td><td>${yoyStr}</td></tr>`;
   }).join('');
 }
 
@@ -2073,7 +2689,7 @@ function renderPLCompare() {
   if (thA) thA.textContent = labelA;
   if (thB) thB.textContent = labelB;
 
-  if (!dA || !dB) { body.innerHTML = '<tr><td colspan="4" style="color:var(--t3);padding:20px">No data</td></tr>'; return; }
+  if (!dA || !dB) { body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">No data</td></tr>'; return; }
 
   function pctChange(a, b) {
     if (!a || a === 0) return null;
@@ -2100,7 +2716,13 @@ function renderPLCompare() {
     return `<td class="${cls ? cls+' ' : ''}mono">${fmtM(v)}</td>`;
   }
 
-  function row(label, vA, vB, indent, invertSign, isBold, extraCls) {
+  // % of section total (denominator passed in by caller)
+  function pctCell(v, den) {
+    if (!den || den <= 0 || v === 0) return '<td class="dim">—</td>';
+    return `<td class="mono" style="color:var(--t3);font-size:12px">${(v/den*100).toFixed(1)}%</td>`;
+  }
+
+  function row(label, vA, vB, indent, invertSign, isBold, extraCls, denA, denB) {
     const pct = pctChange(vA, vB);
     let cls = '';
     if (isBold) cls += ' plc-total-row';
@@ -2109,26 +2731,32 @@ function renderPLCompare() {
     return `<tr${cls?' class="'+cls.trim()+'"':''}>
       <td>${label}</td>
       ${valCell(vA, false)}
+      ${pctCell(vA, denA)}
       ${valCell(vB, false)}
+      ${pctCell(vB, denB)}
       ${chgCell(pct, invertSign, vA, vB)}
     </tr>`;
   }
 
   const rows = [];
 
+  // Denominators for % of section — Revenue & Profitability rows use rev_total, Cost rows use costs_total
+  const revDenA = dA.rev_total, revDenB = dB.rev_total;
+  const costDenA = dA.costs_total, costDenB = dB.costs_total;
+
   // ── REVENUE SECTION ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="4">&#128181; Revenues</td></tr>`);
-  rows.push(row('Total Revenue', dA.rev_total, dB.rev_total, false, false, true));
+  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128181; Revenues</td></tr>`);
+  rows.push(row('Total Revenue', dA.rev_total, dB.rev_total, false, false, true, null, revDenA, revDenB));
   if (dA.rev_corporate || dB.rev_corporate)
-    rows.push(row('Corporate', dA.rev_corporate, dB.rev_corporate, true, false, false));
+    rows.push(row('Corporate', dA.rev_corporate, dB.rev_corporate, true, false, false, null, revDenA, revDenB));
   if (dA.rev_private || dB.rev_private)
-    rows.push(row('Private', dA.rev_private, dB.rev_private, true, false, false));
+    rows.push(row('Private', dA.rev_private, dB.rev_private, true, false, false, null, revDenA, revDenB));
   if (dA.rev_sponsors || dB.rev_sponsors)
-    rows.push(row('Sponsors', dA.rev_sponsors, dB.rev_sponsors, true, false, false));
+    rows.push(row('Sponsors', dA.rev_sponsors, dB.rev_sponsors, true, false, false, null, revDenA, revDenB));
 
   // ── COSTS SECTION ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="4">&#128197; Costs</td></tr>`);
-  rows.push(row('Total Costs', dA.costs_total, dB.costs_total, false, true, true));
+  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128197; Costs</td></tr>`);
+  rows.push(row('Total Costs', dA.costs_total, dB.costs_total, false, true, true, null, costDenA, costDenB));
 
   // Cost clusters — fixed groupings
   const COST_CLUSTERS = [
@@ -2159,12 +2787,12 @@ function renderPLCompare() {
     const subB = groupCats.reduce((s,c) => s + (dB.costs_by_cat[c]||0), 0);
     if (subA === 0 && subB === 0) return;
 
-    rows.push(row(group.label, subA, subB, false, true, false, 'plc-cluster'));
+    rows.push(row(group.label, subA, subB, false, true, false, 'plc-cluster', costDenA, costDenB));
     groupCats.forEach(cat => {
       const cA = dA.costs_by_cat[cat] || 0;
       const cB = dB.costs_by_cat[cat] || 0;
       if (cA === 0 && cB === 0) return;
-      rows.push(row(cat, cA, cB, true, true, false));
+      rows.push(row(cat, cA, cB, true, true, false, null, costDenA, costDenB));
     });
     // #A19 — Gross Profit after F&B cluster (Rev − HR − Rent − F&B)
     if (group.afterGross) {
@@ -2174,39 +2802,43 @@ function renderPLCompare() {
       const dcA = directCats.reduce((s,c) => s + (dA.costs_by_cat[c]||0), 0);
       const dcB = directCats.reduce((s,c) => s + (dB.costs_by_cat[c]||0), 0);
       const gpA = dA.rev_total - dcA, gpB = dB.rev_total - dcB;
-      rows.push(row('✦ Gross Profit (Rev − HR − Rent − F&B)', gpA, gpB, false, false, true, 'plc-ebit'));
+      rows.push(row('✦ Gross Profit (Rev − HR − Rent − F&B)', gpA, gpB, false, false, true, 'plc-ebit', revDenA, revDenB));
       const gpPctA = dA.rev_total>0 ? gpA/dA.rev_total*100 : 0;
       const gpPctB = dB.rev_total>0 ? gpB/dB.rev_total*100 : 0;
-      rows.push(`<tr class="plc-indent"><td>Gross Margin</td><td class="mono gold">${gpPctA.toFixed(1)}%</td><td class="mono gold">${gpPctB.toFixed(1)}%</td>${chgCell(gpPctB-gpPctA,false)}</tr>`);
+      rows.push(`<tr class="plc-indent"><td>Gross Margin</td><td class="dim">—</td><td class="mono gold">${gpPctA.toFixed(1)}%</td><td class="dim">—</td><td class="mono gold">${gpPctB.toFixed(1)}%</td>${chgCell(gpPctB-gpPctA,false)}</tr>`);
     }
   });
 
   // ── EBIT ──
-  rows.push(`<tr class="plc-section-hdr"><td colspan="4">&#9878; Profitability</td></tr>`);
-  rows.push(row('EBIT', dA.ebit, dB.ebit, false, false, true, 'plc-ebit'));
+  rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#9878; Profitability</td></tr>`);
+  rows.push(row('EBIT', dA.ebit, dB.ebit, false, false, true, 'plc-ebit', revDenA, revDenB));
 
   // EBIT % rows
   const ebitPctA = dA.rev_total > 0 ? dA.ebit / dA.rev_total * 100 : 0;
   const ebitPctB = dB.rev_total > 0 ? dB.ebit / dB.rev_total * 100 : 0;
   rows.push(`<tr class="plc-indent">
     <td>EBIT Margin</td>
+    <td class="dim">—</td>
     <td class="mono gold">${ebitPctA.toFixed(1)}%</td>
+    <td class="dim">—</td>
     <td class="mono gold">${ebitPctB.toFixed(1)}%</td>
     ${chgCell(ebitPctB - ebitPctA, false)}
   </tr>`);
 
   // Taxes
-  rows.push(row('Taxes', dA.taxes, dB.taxes, true, true, false));
+  rows.push(row('Taxes', dA.taxes, dB.taxes, true, true, false, null, revDenA, revDenB));
 
   // EBIT after tax
-  rows.push(row('Net Profit (after tax)', dA.ebit_after_tax, dB.ebit_after_tax, false, false, true, 'plc-ebit'));
+  rows.push(row('Net Profit (after tax)', dA.ebit_after_tax, dB.ebit_after_tax, false, false, true, 'plc-ebit', revDenA, revDenB));
 
   // Net margin
   const netPctA = dA.rev_total > 0 ? dA.ebit_after_tax / dA.rev_total * 100 : 0;
   const netPctB = dB.rev_total > 0 ? dB.ebit_after_tax / dB.rev_total * 100 : 0;
   rows.push(`<tr class="plc-indent">
     <td>Net Margin</td>
+    <td class="dim">—</td>
     <td class="mono">${netPctA.toFixed(1)}%</td>
+    <td class="dim">—</td>
     <td class="mono">${netPctB.toFixed(1)}%</td>
     ${chgCell(netPctB - netPctA, false)}
   </tr>`);
