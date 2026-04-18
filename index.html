@@ -312,7 +312,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="page">
@@ -2573,6 +2573,10 @@ function _viewModeLabel(){
 async function generateReport(){
   const btn = document.querySelector('.report-btn');
   const orig = btn ? btn.innerHTML : '';
+  if (!window.jspdf || typeof html2canvas === 'undefined'){
+    alert('PDF libraries failed to load. Check your internet connection and reload the page.');
+    return;
+  }
   const originalTab = (document.querySelector('.tab-btn.on')||{}).id?.replace('tab-','') || 'overview';
   const sb = document.getElementById('sum-body');
   const wasOpen = sb && sb.classList.contains('open');
@@ -2580,6 +2584,7 @@ async function generateReport(){
 
   if (btn){ btn.innerHTML = 'Generating…'; btn.disabled = true; }
 
+  try {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
@@ -2683,8 +2688,12 @@ async function generateReport(){
 
   const datestr = new Date().toISOString().slice(0,10);
   pdf.save('EventyON_PL_Report_' + datestr + '.pdf');
-
-  if (btn){ btn.innerHTML = orig; btn.disabled = false; }
+  } catch(err){
+    console.error('generateReport failed:', err);
+    alert('Report generation failed: ' + (err && err.message ? err.message : err));
+  } finally {
+    if (btn){ btn.innerHTML = orig; btn.disabled = false; }
+  }
 }
 
 /* ══════════════════════════════════════════════
