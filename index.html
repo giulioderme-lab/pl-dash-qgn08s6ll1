@@ -102,8 +102,11 @@ svg{display:block;overflow:hidden} button{font-family:inherit}
 /* #17 — right fade when overflow */
 .tab-nav-wrap::after{content:'';position:absolute;right:0;top:var(--sp2);bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none;border-radius:0 var(--r-md) var(--r-md) 0}
 /* PERIOD FILTER BAR */
-.period-filter-bar{display:flex;flex-direction:column;gap:var(--sp2);padding:var(--sp3) var(--sp4);background:var(--card);border:1px solid var(--b2);border-radius:var(--r-md);margin-bottom:var(--sp3);transition:opacity .25s}
-.period-filter-bar.pf-inactive{opacity:.4;pointer-events:none}
+.period-filter-bar{display:flex;flex-direction:column;gap:var(--sp2);padding:var(--sp3) var(--sp4);background:var(--card);border:1px solid var(--b2);border-radius:var(--r-md);margin-bottom:var(--sp3);transition:opacity .25s;border-left:3px solid var(--gold)}
+.period-filter-bar.pf-inactive{opacity:.4;pointer-events:none;border-left-color:var(--b2)}
+.pf-title-row{display:flex;align-items:baseline;gap:var(--sp3);flex-wrap:wrap}
+.pf-title{font-size:var(--t-sm);font-weight:700;color:var(--t1);text-transform:uppercase;letter-spacing:.5px}
+.pf-hint{font-size:11px;color:var(--t3);font-style:italic}
 .pf-inactive-note{font-size:var(--t-xs);color:var(--t3);font-style:italic;margin-bottom:var(--sp2);display:none}
 .period-filter-bar.pf-inactive .pf-inactive-note{display:block}
 .pf-row{display:flex;align-items:center;gap:var(--sp3)}
@@ -111,6 +114,8 @@ svg{display:block;overflow:hidden} button{font-family:inherit}
 .period-pills{display:flex;gap:var(--sp2);flex-wrap:wrap}
 /* data freshness */
 .pf-freshness{font-size:11px;color:var(--t3);margin-left:auto;padding-left:var(--sp3);white-space:nowrap}
+.period-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;background:var(--kbg);border:1px solid var(--b1);color:var(--t2);font-size:11px;font-weight:600;white-space:nowrap;cursor:default}
+.period-tag::before{content:"▸";color:var(--gold);font-weight:700}
 .tab-btn{height:36px;padding:0 var(--sp4);border-radius:calc(var(--r-md) - 2px);border:none;background:transparent;color:var(--t2);font-size:var(--t-sm);font-weight:600;cursor:pointer;transition:background .2s,color .2s;white-space:nowrap;flex-shrink:0}
 .tab-btn.on{background:var(--gold);color:#fff}
 .tab-btn:hover:not(.on){background:var(--gold-d);color:var(--gold)}
@@ -388,6 +393,10 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 
   <!-- GLOBAL PERIOD FILTER -->
   <div class="period-filter-bar" id="period-filter-bar">
+    <div class="pf-title-row">
+      <span class="pf-title">Period</span>
+      <span class="pf-hint">Applies to every tab except P&amp;L Compare. Click multiple pills to combine (e.g. 2024 + 2025, or Q2 + Q3).</span>
+    </div>
     <div class="pf-row">
       <span class="period-filter-label">Year</span>
       <div class="period-pills" id="pf-years">
@@ -409,7 +418,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="period-pills" id="pf-months"></div>
       <span class="pf-freshness" id="pf-freshness-label"></span>
     </div>
-    <div class="pf-inactive-note">&#9432; Click multiple pills to combine (e.g. 2024 + 2025, or Q2 + Q3). Period filter does not apply to P&amp;L Compare — use the selectors inside that tab.</div>
+    <div class="pf-inactive-note">&#9432; P&amp;L Compare has its own Period A / Period B pickers — use those instead.</div>
   </div>
   <!-- #A12: mobile period filter dropdown -->
   <div class="pf-mobile-wrap" style="display:none;margin-bottom:var(--sp3)">
@@ -559,15 +568,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#127970;</span> Client Revenue Ranking</div>
-        <div class="pills" style="gap:4px;flex-wrap:wrap">
-          <button class="pill on" id="pcl-ytd26" onclick="setClientFilter('ytd26')">YTD 2026</button>
-          <button class="pill" id="pcl-2025" onclick="setClientFilter('2025')">2025</button>
-          <button class="pill" id="pcl-2024" onclick="setClientFilter('2024')">2024</button>
-          <button class="pill" id="pcl-2023" onclick="setClientFilter('2023')">2023</button>
-          <button class="pill" id="pcl-2022" onclick="setClientFilter('2022')">2022</button>
-          <button class="pill" id="pcl-2021" onclick="setClientFilter('2021')">2021</button>
-          <button class="pill" id="pcl-all" onclick="setClientFilter('all')">All Time</button>
-        </div>
+        <div class="period-tag" id="cl-period-tag" title="Period controlled by the global Period filter at the top of the page">Period: —</div>
       </div>
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:var(--sp3);flex-wrap:wrap">
         <div class="search-wrap">
@@ -620,13 +621,9 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
           <button class="pill" id="psp-all-cats" onclick="selectAllSupplierCats()" title="Select all categories" style="background:transparent">All</button>
         </div>
       </div>
-      <div class="pills" style="gap:4px;margin-bottom:12px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--t3);font-weight:600;align-self:center">Period:</span>
-        <button class="pill on" id="psp-ytd26" onclick="setSupplierPeriodFilter('ytd26')">YTD 2026</button>
-        <button class="pill" id="psp-2025" onclick="setSupplierPeriodFilter('2025')">2025</button>
-        <button class="pill" id="psp-2024" onclick="setSupplierPeriodFilter('2024')">2024</button>
-        <button class="pill" id="psp-full" onclick="setSupplierPeriodFilter('full')">2022–2026</button>
-        <span id="sup-period-label" style="font-size:11px;color:var(--t3);margin-left:4px;font-family:var(--mono)">Jan–Apr 2026</span>
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:var(--sp2);flex-wrap:wrap">
+        <span class="period-tag" id="sup-period-tag" title="Period controlled by the global Period filter at the top of the page">Period: —</span>
+        <span id="sup-period-label" style="font-size:11px;color:var(--t3);font-family:var(--mono)"></span>
       </div>
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:var(--sp3);flex-wrap:wrap">
         <div class="search-wrap">
@@ -1329,10 +1326,48 @@ function _pfApplyState() {
 
   // #A8 — update KPI strip to reflect selected period(s)
   updateKPIStrip(keys);
+  _pfSyncPeriodTags();
 
   invalidateCharts();
   const active = document.querySelector('.tab-btn.on');
   if (active) renderTabCharts(active.id.replace('tab-',''));
+}
+
+// Human-readable summary of the current global period selection
+function _globalPeriodLabel() {
+  const years  = [..._pfYears].sort();
+  const qtrs   = [..._pfQtrs].sort((a,b)=>a-b);
+  const months = [..._pfMonths];
+  if (!years.length && !qtrs.length && !months.length) return 'All periods';
+  if (months.length) {
+    // m3-2025 → Mar 2025
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months.map(k => {
+      const m = k.match(/^m(\d+)-(\d{4})$/);
+      return m ? `${MON[+m[1]-1]} ${m[2]}` : k;
+    }).join(' + ');
+  }
+  if (qtrs.length && years.length) {
+    const out = [];
+    for (const y of years) for (const q of qtrs) out.push(`Q${q} ${y}`);
+    return out.length > 4 ? `${out.length} periods` : out.join(' + ');
+  }
+  if (qtrs.length) {
+    const defYr = PF_YEAR_IDS.filter(id => /^\d{4}$/.test(id)).sort().reverse()[0] || '2025';
+    return qtrs.map(q => `Q${q} ${defYr}`).join(' + ');
+  }
+  if (years.length === 1) {
+    const y = years[0];
+    return y === '2026' ? `YTD 2026` : `FY ${y}`;
+  }
+  return years.map(y => y === '2026' ? 'YTD 2026' : `FY ${y}`).join(' + ');
+}
+
+function _pfSyncPeriodTags() {
+  const label = _globalPeriodLabel();
+  const text = 'Period: ' + label;
+  const cl = document.getElementById('cl-period-tag'); if (cl) cl.textContent = text;
+  const sp = document.getElementById('sup-period-tag'); if (sp) sp.textContent = text;
 }
 
 /* #A8 — KPI strip reactive to period filter. Returns {rev,costs,profit} for a single period key. */
@@ -1525,6 +1560,11 @@ function initPeriodFilter() {
     const opts = [['all','All Years']].concat(years.map(y=>[y,y]));
     mobSel.innerHTML = opts.map(([v,t]) => `<option value="${v}">${t}</option>`).join('');
   }
+  // Default: YTD 2026 (matches prior per-tab defaults for Clients/Suppliers)
+  if (PF_YEAR_IDS.includes('2026') && !_pfYears.size && !_pfQtrs.size && !_pfMonths.size) {
+    _pfYears.add('2026');
+  }
+  _pfApplyState();
 }
 /* ══ #A11 — Search clear helpers ══ */
 function clSearchInput() {
@@ -2185,17 +2225,6 @@ function getClientPrevPeriodData(client, filter) {
   return yrs[prev] ? yrs[prev].t : 0;
 }
 
-function setClientFilter(f) {
-  clientFilter = f;
-  ['ytd26','2025','2024','2023','all'].forEach(k => {
-    const btn = document.getElementById('pcl-'+k);
-    if (btn) btn.classList.toggle('on', k === f);
-  });
-  renderClientTable();
-  delete _built['clients-bar'];
-  lazyBuild('clients-bar', buildClientsBarChart);
-}
-
 function renderClientTable() {
   const tbody = document.getElementById('clients-body');
   const q = (document.getElementById('cl-search')?.value||'').toLowerCase().trim();
@@ -2545,24 +2574,6 @@ function toggleSupplierCat(g) {
 function selectAllSupplierCats() {
   supCatFilter = new Set(['food','rent','mkt','other']);
   _supCatChanged();
-}
-
-function setSupplierPeriodFilter(f) {
-  supPeriodFilter = f;
-  ['ytd26','2025','2024','full'].forEach(k => {
-    const btn = document.getElementById('psp-'+k);
-    if (btn) btn.classList.toggle('on', k === f);
-  });
-  // #18: update period range label
-  const lbl = document.getElementById('sup-period-label');
-  if (lbl) {
-    const lm = LAST_MONTH;
-    const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const labels = {ytd26:`Jan–${MONTHS[lm]} 2026`,'2025':'Full Year 2025','2024':'Full Year 2024',full:'All Years'};
-    lbl.textContent = labels[f] || f;
-  }
-  renderSupplierTable();
-  delete _built['sup-bar']; lazyBuild('sup-bar',buildSupplierBarChart);
 }
 
 function renderSupplierTable() {
