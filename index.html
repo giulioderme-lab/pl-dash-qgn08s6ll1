@@ -660,6 +660,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         <div class="card-title"><span class="icon">&#128201;</span> YoY Change by Category</div>
         <button class="csv-btn" onclick="exportCSV('costevo')" aria-label="Export cost evolution data as CSV">⬇ CSV</button>
       </div>
+      <div class="insight-box" id="ce-insights" style="margin-bottom:var(--sp3)"></div>
       <div class="tbl-wrap">
         <table class="tbl-sticky-first">
           <thead id="costevo-thead"><tr><th>Category</th><th>2021</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026 YTD</th><th id="ce-th-tail1">% Rev 2025</th><th>YoY 24→25 ₽</th><th>YoY 24→25 %</th></tr></thead>
@@ -3029,19 +3030,30 @@ function _ceCellValue(cat, yr){
   return s;
 }
 
+// Returns the month count in quarter q that belong to eff (0..3)
+function _ceMonthsOfQInSet(q, eff){
+  let n = 0;
+  for (let i=1; i<=3; i++) if (eff.has((q-1)*3 + i)) n++;
+  return n;
+}
+
 function _ceYearRev(yr){
   const eff = _ceEffectiveMonths();
   if (!eff.size) return REV_TOTALS[yr] || 0;
-  // Prefer exact monthly rev (2026 only)
+  // Exact monthly rev for 2026
   if (yr === '2026' && Array.isArray(window.MONTHLY_2026)){
     let s = 0;
     for (const m of eff){ const r = MONTHLY_2026[m-1]; if (r) s += (r.rev || 0); }
     return s;
   }
-  // Fallback: round up to containing quarters
-  const qs = new Set([...eff].map(m => Math.ceil(m/3)));
+  // Month-proportional within each quarter (1/3 per month of that quarter's rev)
   let s = 0;
-  qs.forEach(q => { s += (PL_BY_PERIOD?.quarters?.[yr+' Q'+q]?.rev_total || 0); });
+  for (let q=1; q<=4; q++){
+    const n = _ceMonthsOfQInSet(q, eff);
+    if (!n) continue;
+    const qr = PL_BY_PERIOD?.quarters?.[yr+' Q'+q]?.rev_total || 0;
+    s += qr * (n/3);
+  }
   return s;
 }
 
@@ -3053,13 +3065,78 @@ function _ceYearCost(yr){
     for (const m of eff){ const r = MONTHLY_2026[m-1]; if (r) s += (r.costs || 0); }
     return s;
   }
-  const qs = new Set([...eff].map(m => Math.ceil(m/3)));
   let s = 0;
-  qs.forEach(q => {
+  for (let q=1; q<=4; q++){
+    const n = _ceMonthsOfQInSet(q, eff);
+    if (!n) continue;
     const qd = PL_BY_PERIOD?.quarters?.[yr+' Q'+q];
-    if (qd) s += (qd.costs_total || 0) + (qd.taxes || 0);
-  });
+    if (qd) s += ((qd.costs_total || 0) + (qd.taxes || 0)) * (n/3);
+  }
   return s;
+}
+
+// True when 2026 has actual data for every month in the effective selection
+function _ce2026DataComplete(){
+  const eff = _ceEffectiveMonths();
+  const months = eff.size ? [...eff] : Array.from({length:12},(_,i)=>i+1);
+  const lm = LAST_MONTH || 0;
+  return months.every(m => m <= lm);
+}
+
+function _ceBuildInsights(){
+  const lbl = _cePeriodLabel() || 'FY';
+  const rev25 = _ceYearRev('2025'), rev24 = _ceYearRev('2024'), rev26 = _ceYearRev('2026');
+  const tot25 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2025'),0);
+  const tot24 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2024'),0);
+  const tot26 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2026'),0);
+  const rows = CE_CATS.map(cat => {
+    const v25 = _ceCellValue(cat,'2025'), v24 = _ceCellValue(cat,'2024'), v26 = _ceCellValue(cat,'2026');
+    const deltaAbs = v25 - v24;
+    const deltaPct = v24>0 ? (deltaAbs/v24*100) : null;
+    const share25 = tot25>0 ? v25/tot25*100 : 0;
+    return { cat, v24, v25, v26, deltaAbs, deltaPct, share25 };
+  }).filter(r => r.v25>0 || r.v24>0);
+  if (!rows.length) return ['No category data in the selected period.'];
+
+  const items = [];
+  // 1. Period-level total
+  const totDelta = tot25 - tot24;
+  const totDeltaPct = tot24>0 ? (totDelta/tot24*100) : null;
+  const margin25 = rev25>0 ? (1 - tot25/rev25)*100 : null;
+  items.push(`Total costs ${lbl} 2025 ${fmtM(tot25)} vs ${lbl} 2024 ${fmtM(tot24)} — ${totDelta>=0?'+':''}${fmtM(totDelta)}${totDeltaPct!=null ? ' ('+(totDeltaPct>=0?'+':'')+totDeltaPct.toFixed(1)+'%)':''} YoY.`);
+  if (rev25>0) items.push(`Cost ratio ${lbl} 2025: ${(tot25/rev25*100).toFixed(1)}% of revenue (margin ${margin25!=null?margin25.toFixed(1)+'%':'—'}).`);
+
+  // 2. Biggest category & its share
+  const byShare = [...rows].sort((a,b)=>b.share25-a.share25);
+  const top = byShare[0];
+  if (top && top.share25>0) items.push(`Largest line ${lbl} 2025: ${top.cat} at ${fmtM(top.v25)} (${top.share25.toFixed(1)}% of total costs).`);
+
+  // 3. Biggest YoY mover (abs ₽)
+  const movers = rows.filter(r => r.v24>0 && r.v25>0 && r.deltaPct!=null);
+  if (movers.length){
+    const up = [...movers].sort((a,b)=>b.deltaAbs-a.deltaAbs)[0];
+    const down = [...movers].sort((a,b)=>a.deltaAbs-b.deltaAbs)[0];
+    if (up && up.deltaAbs>0) items.push(`Biggest increase 24→25: ${up.cat} ${up.deltaAbs>=0?'+':''}${fmtM(up.deltaAbs)} (${up.deltaPct>=0?'+':''}${up.deltaPct.toFixed(1)}%).`);
+    if (down && down.deltaAbs<0) items.push(`Biggest drop 24→25: ${down.cat} ${fmtM(down.deltaAbs)} (${down.deltaPct.toFixed(1)}%).`);
+  }
+
+  // 4. 2026 vs 2025 same-period pace (skip when 2026 has incomplete data for the slice)
+  if (tot26>0 && tot25>0 && _ce2026DataComplete()){
+    const paceDelta = tot26 - tot25;
+    const pacePct = (paceDelta/tot25*100);
+    items.push(`2026 ${lbl} costs ${fmtM(tot26)} — ${paceDelta>=0?'+':''}${fmtM(paceDelta)} (${pacePct>=0?'+':''}${pacePct.toFixed(1)}%) vs 2025 same period.`);
+  }
+
+  return items;
+}
+
+function renderCostEvoInsights(){
+  const box = document.getElementById('ce-insights');
+  if (!box) return;
+  const items = _ceBuildInsights();
+  const lbl = _cePeriodLabel() || 'FY';
+  box.innerHTML = '<div class="insight-title">&#128161; Key Insights — ' + lbl + '</div>' +
+    items.map(b => '<div class="insight-item"><span class="insight-dot">&#9670;</span><span>'+b+'</span></div>').join('');
 }
 
 function _ceUpdateHeader(){
@@ -3084,6 +3161,7 @@ function renderCostEvoTable() {
   if (!tbody) return;
   const vmCE = STATE.viewMode;
   _ceUpdateHeader();
+  renderCostEvoInsights();
   const yrs = ['2021','2022','2023','2024','2025','2026'];
   const denom = {};
   yrs.forEach(yr => {
