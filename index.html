@@ -2722,6 +2722,28 @@ async function generateReport(){
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const raf  = ()  => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+  // Scan an image row for "uniform color" (a gap between cards / end of content)
+  const _isGapRow = (data, width, y, tol) => {
+    const base = y * width * 4;
+    const r0 = data[base], g0 = data[base+1], b0 = data[base+2];
+    const step = Math.max(1, Math.floor(width / 40));
+    for (let x = step; x < width; x += step){
+      const i = base + x*4;
+      if (Math.abs(data[i]-r0)>tol || Math.abs(data[i+1]-g0)>tol || Math.abs(data[i+2]-b0)>tol) return false;
+    }
+    return true;
+  };
+
+  // Find a break row at or above `target`, backing off up to `maxBack` px. Returns `target` if none found.
+  const _findBreakRow = (data, width, height, target, maxBack) => {
+    const ceil = Math.min(target, height - 1);
+    const floor = Math.max(0, target - maxBack);
+    for (let y = ceil; y >= floor; y--){
+      if (_isGapRow(data, width, y, 8)) return y;
+    }
+    return target;
+  };
+
   for (const t of REPORT_TABS){
     showTab(t.id);
     await raf();
@@ -2733,9 +2755,14 @@ async function generateReport(){
       const canvas = await html2canvas(panel, { scale: 2, useCORS: true, logging: false, backgroundColor: bg });
       const imgW = canvas.width;
       const mmPerPx = usableW / imgW;
-      const sliceHpx = Math.floor(usableH / mmPerPx);
+      const pageSlicePx = Math.floor(usableH / mmPerPx);
+      const maxBackoff = Math.floor(pageSlicePx * 0.35); // up to 35% backoff to land on a gap
+      const srcCtx = canvas.getContext('2d');
+      let pixelData = null;
+      try { pixelData = srcCtx.getImageData(0, 0, canvas.width, canvas.height).data; }
+      catch(e){ /* tainted canvas — fall back to blind slicing */ }
 
-      let srcY = 0, first = true;
+      let srcY = 0;
       while (srcY < canvas.height){
         pdf.addPage();
         pdf.setFillColor(bg);
@@ -2751,15 +2778,27 @@ async function generateReport(){
         const meta = (typeof _globalPeriodLabel === 'function' ? _globalPeriodLabel() : '') + ' · ' + _viewModeLabel();
         pdf.text(meta, pageW - margin, margin + 2, { align: 'right' });
 
-        const sliceH = Math.min(sliceHpx, canvas.height - srcY);
+        const remaining = canvas.height - srcY;
+        let sliceH;
+        if (remaining <= pageSlicePx){
+          sliceH = remaining; // last chunk — no break needed
+        } else {
+          const rawEnd = srcY + pageSlicePx;
+          const snappedEnd = pixelData
+            ? _findBreakRow(pixelData, canvas.width, canvas.height, rawEnd, maxBackoff)
+            : rawEnd;
+          // Guard: refuse to produce a tiny slice if snapping went weirdly short
+          const minSlice = Math.floor(pageSlicePx * 0.5);
+          sliceH = (snappedEnd - srcY) >= minSlice ? (snappedEnd - srcY) : pageSlicePx;
+        }
+
         const strip = document.createElement('canvas');
         strip.width = imgW; strip.height = sliceH;
         strip.getContext('2d').drawImage(canvas, 0, srcY, imgW, sliceH, 0, 0, imgW, sliceH);
         const imgHmm = sliceH * mmPerPx;
         pdf.addImage(strip.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin + 4, usableW, imgHmm);
 
-        srcY += sliceHpx;
-        first = false;
+        srcY += sliceH;
       }
     } catch(err){
       console.error('Report page failed for', t.id, err);
