@@ -603,6 +603,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="legend" id="cc-legend"></div>
       <div class="chart-wrap" id="cost-compare-chart"></div>
       <div class="tbl-wrap" id="cost-compare-table" style="margin-top:var(--sp4)"></div>
+      <div id="cost-compare-detail" style="margin-top:var(--sp4);display:none"></div>
     </div>
   </div>
 
@@ -2268,7 +2269,8 @@ function buildCostCompareChart() {
     const rows = catWithTotals.map(({c, total}) => {
       const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[c]||'#989693'};margin-right:6px;vertical-align:middle"></span>`;
       const cells = slots.map(sl => `<td class="mono dim">${fmtTblCell(sl.cats[c]||0, sl)}</td>`).join('');
-      return `<tr><td class="bold">${dot}${c}</td>${cells}<td class="mono">${fmtTotCell(total, denSum)}</td></tr>`;
+      const sel = _ccSelectedCat === c ? ' selected' : '';
+      return `<tr class="tree-row client-row${sel}" onclick='toggleCostCompareDetail(${JSON.stringify(c)})' title="Click to see this category's 5-year trend"><td class="bold">${dot}${c}</td>${cells}<td class="mono">${fmtTotCell(total, denSum)}</td></tr>`;
     }).join('');
     tbl.innerHTML = `<table class="tbl-sticky-first">
       <thead><tr><th>Category</th>${colHdr}<th>5-yr total</th></tr></thead>
@@ -2278,6 +2280,53 @@ function buildCostCompareChart() {
       </tbody>
     </table>`;
   }
+  if (_ccSelectedCat) renderCostCompareDetail(_ccSelectedCat);
+}
+
+/* "Cost Breakdown by Year — Last 5 Years" row expansion: shows that category's
+   yearly trend below the table. State kept separate from the Category Tree. */
+let _ccSelectedCat = null;
+
+function toggleCostCompareDetail(cat){
+  if (_ccSelectedCat === cat){
+    _ccSelectedCat = null;
+    const host = document.getElementById('cost-compare-detail');
+    if (host){ host.style.display='none'; host.innerHTML=''; }
+    buildCostCompareChart();
+    return;
+  }
+  _ccSelectedCat = cat;
+  buildCostCompareChart();
+  const host = document.getElementById('cost-compare-detail');
+  if (host) host.style.display = '';
+  requestAnimationFrame(() => renderCostCompareDetail(cat));
+}
+
+function renderCostCompareDetail(cat){
+  const host = document.getElementById('cost-compare-detail');
+  if (!host) return;
+  const color = CAT_COLORS[cat] || (typeof CE_COLORS !== 'undefined' ? CE_COLORS[cat] : null) || '#989693';
+  const closeBtn = `<button class="pill" onclick='toggleCostCompareDetail(${JSON.stringify(cat)})' style="background:transparent">&times; Close</button>`;
+  const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:6px;vertical-align:middle"></span>`;
+  const d = CAT_EVO[cat];
+  if (!d){
+    host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
+      <div style="font-size:var(--t-md);color:var(--t1);font-weight:600">${dot}${cat} — 5-Year Trend</div>
+      ${closeBtn}
+    </div>
+    <div style="padding:var(--sp5);text-align:center;color:var(--t3);font-size:var(--t-sm);background:var(--card);border:1px dashed var(--b2);border-radius:8px">No yearly evolution data available for &ldquo;${cat}&rdquo;.</div>`;
+    return;
+  }
+  host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
+    <div style="font-size:var(--t-md);color:var(--t1);font-weight:600">${dot}${cat} — 5-Year Trend (Absolute ₽)</div>
+    ${closeBtn}
+  </div><div class="chart-wrap" id="cost-compare-detail-chart"></div>`;
+  const yrs = ['2022','2023','2024','2025','2026'];
+  const vals = yrs.map(yr => {
+    const v = d[yr]?.t || 0;
+    return { year: yr, raw: v, plotted: v };
+  });
+  buildCostEvoDetailChart(cat, vals, 'cost-compare-detail-chart', false);
 }
 
 let _cbSelectedCat = null;
