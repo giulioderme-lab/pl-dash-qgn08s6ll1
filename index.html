@@ -230,6 +230,14 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 /* category drill tooltip badge */
 .cat-drill-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;color:inherit}
 .cat-drill-link:hover{color:var(--gold)}
+/* modal overlay for client drill-down */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:var(--sp5);overflow-y:auto}
+.modal-backdrop.open{display:flex}
+.modal-dialog{background:var(--card);border:1px solid var(--b2);border-radius:var(--r-lg);width:100%;max-width:960px;margin-top:var(--sp6);box-shadow:0 24px 64px rgba(0,0,0,.5);max-height:calc(100vh - var(--sp8));display:flex;flex-direction:column;overflow:hidden}
+.modal-dialog .card-hdr{border-bottom:1px solid var(--b1);padding-bottom:var(--sp3);margin-bottom:var(--sp3)}
+.modal-body{padding:var(--sp5);overflow-y:auto}
+.modal-body .chart-wrap{min-height:380px}
+@media(max-width:600px){.modal-body .chart-wrap{min-height:260px}}
 
 @media(max-width:600px){
   .chart-insight{grid-template-columns:1fr!important}
@@ -456,7 +464,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         </div>
       </div>
       <!-- Insights section (merged into same card) -->
-      <div style="margin-top:var(--sp4);padding-top:var(--sp4);border-top:1px solid var(--b1)">
+      <div style="margin-top:var(--sp6);padding-top:var(--sp6);border-top:1px solid var(--b1)">
         <div class="insight-box" id="hist-insights" style="max-width:100%;background:transparent;border:none;padding:0"></div>
       </div>
     </div>
@@ -469,13 +477,18 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#9632;</span> Cost Breakdown — <span id="breakdown-period-label">2026 YTD</span></div>
-        <div class="pills">
-          <button class="pill on" id="p-mode-abs"     onclick="setCostMode('abs')"     title="Absolute rubles">&#8381; Absolute</button>
-          <button class="pill"    id="p-mode-pctRev"  onclick="setCostMode('pctRev')"  title="Each value as a share of that period's revenue">% of Revenue</button>
-          <button class="pill"    id="p-mode-pctCost" onclick="setCostMode('pctCost')" title="Each value as a share of that period's total costs (composition)">% of Cost</button>
-        </div>
       </div>
       <div id="stacked-view">
+        <div style="display:flex;gap:var(--sp3);flex-wrap:wrap;margin-bottom:var(--sp3)">
+          <div class="pills" role="group" aria-label="Label mode">
+            <button class="pill on" id="p-lbl-abs" onclick="setCostLabelMode('abs')" title="Show absolute rubles in-bar">&#8381; Value</button>
+            <button class="pill"    id="p-lbl-pct" onclick="setCostLabelMode('pct')" title="Show percentage of bar total in-bar">% Share</button>
+          </div>
+          <div class="pills" role="group" aria-label="Bar mode">
+            <button class="pill on" id="p-bar-stacked" onclick="setCostBarMode('stacked')" title="Absolute stacked bars">Stacked</button>
+            <button class="pill"    id="p-bar-100pct"  onclick="setCostBarMode('100pct')"  title="Every bar normalized to 100% (composition)">100% Stacked</button>
+          </div>
+        </div>
         <div class="legend" id="stack-legend"></div>
         <div class="chart-wrap" id="stack-chart"></div>
       </div>
@@ -496,19 +509,27 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128200;</span> Cost Breakdown by Year — Last 5 Years</div>
-        <div class="pills" role="group" aria-label="Cost comparison period">
-          <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
-          <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
-          <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
-          <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
-          <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
+        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
+          <div class="pills" role="group" aria-label="Cost comparison mode">
+            <button class="pill on" id="pcc-mode-abs"     onclick="setCostCompareMode('abs')"     title="Absolute rubles">&#8381; Absolute</button>
+            <button class="pill"    id="pcc-mode-pctRev"  onclick="setCostCompareMode('pctRev')"  title="Each category as % of that year's revenue">% of Revenue</button>
+            <button class="pill"    id="pcc-mode-pctCost" onclick="setCostCompareMode('pctCost')" title="Each category as % of that year's total costs (bars reach 100%)">% of Cost</button>
+          </div>
+          <div class="pills" role="group" aria-label="Cost comparison period">
+            <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
+            <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
+            <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
+            <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
+            <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
+          </div>
         </div>
       </div>
       <div style="font-size:var(--t-xs);color:var(--t3);margin-bottom:var(--sp2)">
-        Stack mode follows the toggle above (<span id="pcc-mode-hint">absolute</span>). <span id="pcc-partial-note" style="display:none">&#9888; partial period.</span>
+        Stack mode: <span id="pcc-mode-hint">absolute rubles</span>. <span id="pcc-partial-note" style="display:none">&#9888; partial period.</span>
       </div>
       <div class="legend" id="cc-legend"></div>
       <div class="chart-wrap" id="cost-compare-chart"></div>
+      <div class="tbl-wrap" id="cost-compare-table" style="margin-top:var(--sp4)"></div>
     </div>
   </div>
 
@@ -548,14 +569,19 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         </table>
       </div>
     </div>
-    <!-- Per-client 5-year trend (shown when a client row is selected) -->
-    <div class="card" id="client-detail-card" style="display:none;margin-bottom:0">
-      <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
-        <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
+  </div>
+
+  <!-- Per-client 5-year trend modal (shown when a client row is selected) -->
+  <div class="modal-backdrop" id="client-detail-backdrop" onclick="if(event.target===this) closeClientDetail()" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="client-detail-title">
+      <div class="modal-body">
+        <div class="card-hdr">
+          <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
+          <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
+        </div>
+        <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp4);font-size:var(--t-sm);color:var(--t2)"></div>
+        <div class="chart-wrap" id="client-trend-chart"></div>
       </div>
-      <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
-      <div class="chart-wrap" id="client-trend-chart"></div>
     </div>
   </div>
 
@@ -634,6 +660,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
           <tbody id="costevo-body"></tbody>
         </table>
       </div>
+      <div id="costevo-detail" style="margin-top:var(--sp4);display:none"></div>
     </div>
   </div>
 
@@ -663,9 +690,9 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
             <tr>
               <th style="text-align:left;min-width:220px">Line Item</th>
               <th id="plc-th-a">Period A</th>
-              <th title="Share of section total (Revenue rows: % of Revenue · Cost rows: % of Costs · Profitability: % of Revenue)">% A</th>
+              <th>% A</th>
               <th id="plc-th-b">Period B</th>
-              <th title="Share of section total (Revenue rows: % of Revenue · Cost rows: % of Costs · Profitability: % of Revenue)">% B</th>
+              <th>% B</th>
               <th>% Change</th>
             </tr>
           </thead>
@@ -1462,7 +1489,8 @@ let qView='chart';
 /* ══════════════════════════════════════════════
    BREAKDOWN DATA HELPER — period-aware
 ══════════════════════════════════════════════ */
-let _costMode = 'abs';  // 'abs' | 'pctRev' | 'pctCost'
+let _costLabelMode = 'abs';    // 'abs' | 'pct'     — in-bar label format
+let _costBarMode   = 'stacked';// 'stacked' | '100pct' — bar height scale
 
 function getBreakdownData() {
   const p = STATE.globalPeriod;
@@ -1575,23 +1603,25 @@ function buildStackChart(){
   const t2=gv('--t2'),t3=gv('--t3'),b1=gv('--b1');
   const n=slots.length;
 
-  // Mode-aware transform: returns plotted magnitude per category value
+  // Bar mode — 'stacked' = absolute ₽ heights; '100pct' = normalized to bar total (each bar = 100%)
   const tr = (v, slot) => {
-    if (_costMode === 'abs') return v;
-    if (_costMode === 'pctRev') return slot.rev > 0 ? v / slot.rev * 100 : 0;
-    return slot.costs > 0 ? v / slot.costs * 100 : 0;  // pctCost
+    if (_costBarMode === '100pct') return slot.costs > 0 ? v / slot.costs * 100 : 0;
+    return v; // stacked: absolute
   };
   const perSlotTotal = slots.map(s => tr(s.costs, s));
-  const defaultMax = _costMode === 'abs' ? 1 : 100;
+  const defaultMax = _costBarMode === '100pct' ? 100 : 1;
   const maxV = Math.max(...perSlotTotal, defaultMax);
   const yS = v => iH - v/maxV*iH;
   const slotW=iW/n, bW=Math.min(slotW*0.6,60);
   const cx=i=>i*slotW+slotW/2;
-  const fmtAxisMode = v => _costMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
-  const fmtValMode  = (v, slot) => {
-    if (_costMode === 'abs') return fmtAxis(v);
-    const p = tr(v, slot);
-    return p.toFixed(p>=10?0:1) + '%';
+  const fmtAxisMode = v => _costBarMode === '100pct' ? v.toFixed(0) + '%' : fmtAxis(v);
+  // Label mode — independent of bar mode
+  const fmtValMode = (v, slot) => {
+    if (_costLabelMode === 'pct') {
+      const p = slot.costs > 0 ? v / slot.costs * 100 : 0;
+      return p.toFixed(0) + '%';
+    }
+    return fmtAxis(v);
   };
 
   for(let i=0;i<=4;i++){
@@ -1640,22 +1670,30 @@ function buildStackChart(){
 /* ══════════════════════════════════════════════
    TREE TABLE
 ══════════════════════════════════════════════ */
-function setCostMode(mode) {
-  _costMode = mode;
-  ['abs','pctRev','pctCost'].forEach(m => {
-    const b = document.getElementById('p-mode-'+m);
+function setCostLabelMode(mode) {
+  _costLabelMode = mode;
+  ['abs','pct'].forEach(m => {
+    const b = document.getElementById('p-lbl-'+m);
     if (b) b.classList.toggle('on', mode === m);
   });
-  // Rebuild whichever view is visible; rebuild both cheaply for consistency
   buildStackChart();
   buildTreeTable();
-  buildCostCompareChart();
+}
+
+function setCostBarMode(mode) {
+  _costBarMode = mode;
+  ['stacked','100pct'].forEach(m => {
+    const b = document.getElementById('p-bar-'+m);
+    if (b) b.classList.toggle('on', mode === m);
+  });
+  buildStackChart();
 }
 
 /* ══════════════════════════════════════════════
    COST BREAKDOWN COMPARISON — last 5 years, Full Year or by Quarter
 ══════════════════════════════════════════════ */
 let _costComparePeriod = 'full'; // 'full' | 'Q1' | 'Q2' | 'Q3' | 'Q4'
+let _ccMode = 'abs';             // 'abs' | 'pctRev' | 'pctCost' — independent of main Cost Breakdown toggle
 
 function setCostComparePeriod(p) {
   _costComparePeriod = p;
@@ -1664,6 +1702,17 @@ function setCostComparePeriod(p) {
     const btn = document.getElementById(id);
     if (btn) btn.classList.toggle('on', k === p);
   });
+  buildCostCompareChart();
+}
+
+function setCostCompareMode(mode) {
+  _ccMode = mode;
+  ['abs','pctRev','pctCost'].forEach(m => {
+    const b = document.getElementById('pcc-mode-' + m);
+    if (b) b.classList.toggle('on', mode === m);
+  });
+  const hint = document.getElementById('pcc-mode-hint');
+  if (hint) hint.textContent = mode === 'abs' ? 'absolute rubles' : (mode === 'pctRev' ? '% of revenue' : '% of cost');
   buildCostCompareChart();
 }
 
@@ -1691,7 +1740,7 @@ function buildCostCompareChart() {
   const host = document.getElementById(cId);
   if (!host) return;
   const modeHint = document.getElementById('pcc-mode-hint');
-  if (modeHint) modeHint.textContent = _costMode === 'abs' ? 'absolute rubles' : (_costMode === 'pctRev' ? '% of revenue' : '% of cost');
+  if (modeHint) modeHint.textContent = _ccMode === 'abs' ? 'absolute rubles' : (_ccMode === 'pctRev' ? '% of revenue' : '% of cost');
 
   const endYear = 2026;
   const years = [endYear-4, endYear-3, endYear-2, endYear-1, endYear];
@@ -1726,19 +1775,19 @@ function buildCostCompareChart() {
   const t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1'), amber = gv('--amber') || '#f0ad4e';
 
   const tr = (v, slot) => {
-    if (_costMode === 'abs') return v;
-    if (_costMode === 'pctRev')  return slot.rev   > 0 ? v / slot.rev   * 100 : 0;
-    return                            slot.costs > 0 ? v / slot.costs * 100 : 0;
+    if (_ccMode === 'abs') return v;
+    if (_ccMode === 'pctRev')  return slot.rev   > 0 ? v / slot.rev   * 100 : 0;
+    return                          slot.costs > 0 ? v / slot.costs * 100 : 0;
   };
   const perSlotTotal = slots.map(s => tr(s.costs, s));
-  const defaultMax = _costMode === 'abs' ? 1 : 100;
+  const defaultMax = _ccMode === 'abs' ? 1 : 100;
   const maxV = Math.max(...perSlotTotal, defaultMax);
   const yS = v => iH - v / maxV * iH;
   const n = slots.length;
   const slotW = iW / n, bW = Math.min(slotW * 0.6, 70);
   const cx = i => i * slotW + slotW / 2;
-  const fmtAxisMode = v => _costMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
-  const fmtValMode = (v, slot) => _costMode === 'abs' ? fmtAxis(v) : (tr(v, slot).toFixed(tr(v,slot)>=10?0:1) + '%');
+  const fmtAxisMode = v => _ccMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
+  const fmtValMode = (v, slot) => _ccMode === 'abs' ? fmtAxis(v) : (tr(v, slot).toFixed(tr(v,slot)>=10?0:1) + '%');
 
   for (let i = 0; i <= 4; i++) {
     const v = maxV * i / 4, y = yS(v);
@@ -1782,6 +1831,41 @@ function buildCostCompareChart() {
       `<div class="leg-item"><div class="leg-dot" style="background:${col}"></div>${c}</div>`
     ).join('');
   }
+
+  // Table — same data / categories × years + 5-year total, sorted by total desc
+  const tbl = document.getElementById('cost-compare-table');
+  if (tbl) {
+    const fmtTblCell = (v, slot) => {
+      if (v <= 0) return '—';
+      if (_ccMode === 'abs') return fmtM(v);
+      const den = _ccMode === 'pctRev' ? slot.rev : slot.costs;
+      return den > 0 ? (v / den * 100).toFixed(1) + '%' : '—';
+    };
+    const fmtTotCell = (sum, denSum) => {
+      if (sum <= 0) return '—';
+      if (_ccMode === 'abs') return fmtM(sum);
+      return denSum > 0 ? (sum / denSum * 100).toFixed(1) + '%' : '—';
+    };
+    const denSum = slots.reduce((s, sl) => s + (_ccMode === 'pctRev' ? sl.rev : sl.costs), 0);
+    const catWithTotals = allCats.map(c => ({ c, total: slots.reduce((s, sl) => s + (sl.cats[c] || 0), 0) }))
+                                 .sort((a,b) => b.total - a.total);
+    const colHdr = slots.map(sl => `<th>${sl.name}</th>`).join('');
+    const totalsBySlot = slots.map(sl => sl.costs);
+    const totalsRow = slots.map(sl => `<td class="mono bold">${fmtTblCell(sl.costs, sl)}</td>`).join('');
+    const grandTotal = totalsBySlot.reduce((a,b) => a+b, 0);
+    const rows = catWithTotals.map(({c, total}) => {
+      const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[c]||'#989693'};margin-right:6px;vertical-align:middle"></span>`;
+      const cells = slots.map(sl => `<td class="mono dim">${fmtTblCell(sl.cats[c]||0, sl)}</td>`).join('');
+      return `<tr><td class="bold">${dot}${c}</td>${cells}<td class="mono">${fmtTotCell(total, denSum)}</td></tr>`;
+    }).join('');
+    tbl.innerHTML = `<table class="tbl-sticky-first">
+      <thead><tr><th>Category</th>${colHdr}<th>5-yr total</th></tr></thead>
+      <tbody>
+        <tr class="tree-header"><td>TOTAL COSTS</td>${totalsRow}<td class="mono bold gold">${fmtTotCell(grandTotal, denSum)}</td></tr>
+        ${rows}
+      </tbody>
+    </table>`;
+  }
 }
 
 function buildTreeTable(){
@@ -1792,44 +1876,32 @@ function buildTreeTable(){
   _updateBreakdownLabels(bd.label);
 
   const { slots, catTotals, revTotal } = bd;
-  const mode = _costMode;  // 'abs' | 'pctRev' | 'pctCost'
+  const asPct = _costLabelMode === 'pct';
   const totalCosts = Object.values(catTotals).reduce((a,b) => a + (b > 0 ? b : 0), 0);
 
-  // Per-slot cell: value of category `cat` formatted for the current mode
-  const slotCell = (v, s) => {
-    if (mode === 'abs')     return fmtM(v);
-    if (mode === 'pctRev')  return s.rev   > 0 ? (v / s.rev   * 100).toFixed(1) + '%' : '—';
-    /* pctCost */           return s.costs > 0 ? (v / s.costs * 100).toFixed(1) + '%' : '—';
-  };
-  // Total-column cell for a row (total across slots)
-  const totalCellFor = (total) => {
-    if (mode === 'abs')     return fmtM(total);
-    if (mode === 'pctRev')  return revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) + '%' : '—';
-    /* pctCost */           return totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) + '%' : '—';
-  };
+  const slotCell = (v, s) => asPct
+    ? (s.costs > 0 ? (v / s.costs * 100).toFixed(1) + '%' : '—')
+    : fmtM(v);
+  const totalCellFor = (total) => asPct
+    ? (totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) + '%' : '—')
+    : fmtM(total);
 
-  // Build dynamic column headers
   const colHeaders = slots.map(s => `<th>${s.name}</th>`).join('');
   if (thead){
-    // In abs mode we keep an extra "% of Rev" tail column; in pct modes it's redundant
-    const tailHeader = mode === 'abs' ? '<th>% of Rev</th>' : '';
-    thead.innerHTML = `<tr><th>Category</th>${colHeaders}<th>Total</th><th>Share of Costs</th>${tailHeader}</tr>`;
+    // "% of Rev" tail column always shown — useful diagnostic regardless of label mode
+    thead.innerHTML = `<tr><th>Category</th>${colHeaders}<th>Total</th><th>Share of Costs</th><th>% of Rev</th></tr>`;
   }
 
   let rows = '';
-  // TOTAL COSTS row
   const totalCells = slots.map(s => `<td class="mono bold">${slotCell(s.costs, s)}</td>`).join('');
-  const totalTailCell = mode === 'abs'
-    ? `<td class="mono bold gold">${revTotal > 0 ? (totalCosts / revTotal * 100).toFixed(1) + '%' : '—'}</td>`
-    : '';
+  const totalTailCell = `<td class="mono bold gold">${revTotal > 0 ? (totalCosts / revTotal * 100).toFixed(1) + '%' : '—'}</td>`;
   rows += `<tr class="tree-header"><td>TOTAL COSTS</td>${totalCells}<td class="mono bold gold">${totalCellFor(totalCosts)}</td><td class="mono bold gold">100%</td>${totalTailCell}</tr>`;
 
-  // Category rows sorted by total desc
   Object.entries(catTotals).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]).forEach(([cat, total]) => {
     const share  = totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) : '0.0';
     const pctRev = revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) : null;
     const mCells = slots.map(s => `<td class="mono dim">${slotCell(s.cats[cat] || 0, s)}</td>`).join('');
-    const tailCell = mode === 'abs' ? `<td class="mono muted">${pctRev==null?'—':pctRev+'%'}</td>` : '';
+    const tailCell = `<td class="mono muted">${pctRev==null?'—':pctRev+'%'}</td>`;
     rows += `<tr class="tree-row"><td style="padding-left:20px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat}</td>${mCells}<td class="mono">${totalCellFor(total)}</td><td class="mono muted">${share}%</td>${tailCell}</tr>`;
   });
   tbody.innerHTML = rows;
@@ -2031,24 +2103,33 @@ function buildClientsBarChart() {
   document.getElementById(cId).appendChild(svg);
 }
 
-/* ── Per-client 5-year trend drill-down ── */
+/* ── Per-client 5-year trend drill-down (modal) ── */
 function selectClient(name){
   const c = TOP_CLIENTS.find(x => x.n === name);
   if (!c) return;
-  // If clicking the already-selected client, deselect
   if (selectedClient === name){ closeClientDetail(); return; }
   selectedClient = name;
   renderClientTable();
-  const card = document.getElementById('client-detail-card');
-  card.style.display = '';   // must be visible before measuring chart width
-  renderClientDetail(c);
-  requestAnimationFrame(() => card.scrollIntoView({behavior:'smooth', block:'nearest'}));
+  const bd = document.getElementById('client-detail-backdrop');
+  bd.classList.add('open');
+  bd.setAttribute('aria-hidden','false');
+  document.body.style.overflow = 'hidden';
+  // Modal dialog is now visible; render inside an rAF so widths measure correctly.
+  requestAnimationFrame(() => renderClientDetail(c));
 }
 function closeClientDetail(){
   selectedClient = null;
-  document.getElementById('client-detail-card').style.display = 'none';
+  const bd = document.getElementById('client-detail-backdrop');
+  if (bd){ bd.classList.remove('open'); bd.setAttribute('aria-hidden','true'); }
+  document.body.style.overflow = '';
   renderClientTable();
 }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const bd = document.getElementById('client-detail-backdrop');
+    if (bd && bd.classList.contains('open')) closeClientDetail();
+  }
+});
 
 function renderClientDetail(c){
   const years = [2022,2023,2024,2025,2026];
@@ -2518,11 +2599,12 @@ function setCostEvoMode(mode) {
   renderCostEvoTable();
 }
 
+let _ceSelectedCat = null;
+
 function renderCostEvoTable() {
   const tbody = document.getElementById('costevo-body');
   if (!tbody) return;
   const yrs = ['2021','2022','2023','2024','2025','2026'];
-  // Pre-compute year denominators (rev or total cost)
   const denom = {};
   yrs.forEach(yr => {
     denom[yr] = _ceMode === 'pctRev' ? (REV_TOTALS[yr] || 0)
@@ -2545,17 +2627,97 @@ function renderCostEvoTable() {
       return `<td class="mono ${v>0?'':'dim'}">${fmtCell(v, yr)}</td>`;
     }).join('');
     const v25 = d['2025']?.t||0, v24 = d['2024']?.t||0;
-    // Tail column 1: share of 2025 revenue (abs + pctRev modes) or share of 2025 total cost (pctCost mode)
     const tailDenom = _ceMode === 'pctCost' ? _ceYearCostTotal('2025') : (REV_TOTALS['2025']||0);
     const tailPct = (v25>0 && tailDenom>0) ? (v25/tailDenom*100).toFixed(1)+'%' : '—';
-    // YoY ₽ delta + % always based on absolute values (meaningful in every mode)
     const delta = (v24>0 && v25>0) ? (v25-v24) : null;
     const yoyPct = (v24>0 && v25>0) ? ((v25-v24)/v24*100) : null;
     const deltaStr = delta!==null ? `<span class="${delta>=0?'pos':'neg'} no-arrow">${delta>=0?'+':''}${fmtM(delta)}</span>` : '—';
     const yoyStr = yoyPct!==null ? `<span class="${yoyPct>=0?'pos':'neg'} no-arrow">${yoyPct>=0?'+':''}${yoyPct.toFixed(1)}%</span>` : '—';
     const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CE_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>`;
-    return `<tr><td class="bold">${dot}${cat}</td>${cells}<td class="mono muted">${tailPct}</td><td>${deltaStr}</td><td>${yoyStr}</td></tr>`;
+    const sel = _ceSelectedCat === cat ? ' selected' : '';
+    const catJson = JSON.stringify(cat);
+    return `<tr class="client-row${sel}" onclick='toggleCostEvoDetail(${catJson})' title="Click to see this category's trend"><td class="bold">${dot}${cat}</td>${cells}<td class="mono muted">${tailPct}</td><td>${deltaStr}</td><td>${yoyStr}</td></tr>`;
   }).join('');
+  // If a row is selected, re-render its detail so mode changes stay in sync
+  if (_ceSelectedCat) renderCostEvoDetail(_ceSelectedCat);
+}
+
+function toggleCostEvoDetail(cat){
+  if (_ceSelectedCat === cat){
+    _ceSelectedCat = null;
+    const host = document.getElementById('costevo-detail');
+    if (host){ host.style.display='none'; host.innerHTML=''; }
+    renderCostEvoTable();
+    return;
+  }
+  _ceSelectedCat = cat;
+  renderCostEvoTable();
+  const host = document.getElementById('costevo-detail');
+  if (host) host.style.display = '';
+  requestAnimationFrame(() => renderCostEvoDetail(cat));
+}
+
+function renderCostEvoDetail(cat){
+  const host = document.getElementById('costevo-detail');
+  if (!host) return;
+  const yrs = ['2021','2022','2023','2024','2025','2026'];
+  const d = CAT_EVO[cat]; if (!d) { host.innerHTML=''; return; }
+  const modeLabel = _ceMode === 'abs' ? 'Absolute (₽)' : (_ceMode === 'pctRev' ? '% of Revenue' : '% of Cost');
+  host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
+    <div style="font-size:var(--t-md);color:var(--t1);font-weight:600"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CE_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat} — ${modeLabel}</div>
+    <button class="pill" onclick="toggleCostEvoDetail(${JSON.stringify(cat)})" style="background:transparent">&times; Close</button>
+  </div><div class="chart-wrap" id="costevo-detail-chart"></div>`;
+  // Build values in current mode
+  const vals = yrs.map(yr => {
+    const v = d[yr]?.t || 0;
+    let plotted = v;
+    if (_ceMode === 'pctRev')  { const den = REV_TOTALS[yr] || 0; plotted = den > 0 ? v / den * 100 : 0; }
+    if (_ceMode === 'pctCost') { const den = _ceYearCostTotal(yr); plotted = den > 0 ? v / den * 100 : 0; }
+    return { year: yr, raw: v, plotted };
+  });
+  buildCostEvoDetailChart(cat, vals);
+}
+
+function buildCostEvoDetailChart(cat, vals){
+  const cId = 'costevo-detail-chart';
+  const host = document.getElementById(cId);
+  if (!host) return;
+  const isPct = _ceMode !== 'abs';
+  const cW = gW(cId), PL = 60, PR = 20, PT = 16, PB = 28, H = 240;
+  const iW = cW - PL - PR, iH = H - PT - PB;
+  const svg = el('svg', { viewBox: `0 0 ${cW} ${H}`, xmlns: NS });
+  const g = el('g', { transform: `translate(${PL},${PT})` });
+  svg.appendChild(g);
+  const t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1'), amber = gv('--amber') || '#f0ad4e';
+  const catCol = CE_COLORS[cat] || gv('--gold');
+  const n = vals.length;
+  const maxV = Math.max(...vals.map(v => v.plotted), isPct ? 5 : 1);
+  const yS = v => iH - v / maxV * iH;
+  const xS = i => (n > 1 ? i / (n - 1) * iW : iW / 2);
+  const fmtA = v => isPct ? v.toFixed(0) + '%' : fmtAxis(v);
+  const fmtV = (raw, plotted) => isPct ? plotted.toFixed(1) + '%' : fmtM(raw);
+  for (let i = 0; i <= 4; i++){
+    const v = maxV * i / 4, y = yS(v);
+    g.appendChild(el('line', { x1: 0, y1: y, x2: iW, y2: y, stroke: b1, 'stroke-width': 1 }));
+    g.appendChild(tx(fmtA(v), { x: -6, y: y + 4, 'text-anchor': 'end', fill: t3, 'font-size': CHF.sm, 'font-family': 'IBM Plex Mono,monospace' }));
+  }
+  const pts = vals.map((d, i) => ({ x: xS(i), y: yS(d.plotted), ...d }));
+  let path = '';
+  pts.forEach((p, i) => { path += (i === 0 ? 'M' : ' L') + p.x + ' ' + p.y; });
+  g.appendChild(el('path', { d: path, fill: 'none', stroke: catCol, 'stroke-width': 2.2, 'stroke-linejoin': 'round' }));
+  pts.forEach((p, i) => {
+    g.appendChild(el('circle', { cx: p.x, cy: p.y, r: 4, fill: catCol }));
+    g.appendChild(tx(fmtV(p.raw, p.plotted), { x: p.x, y: p.y - 9, 'text-anchor': 'middle', fill: t2, 'font-size': CHF.sm, 'font-family': 'IBM Plex Mono,monospace' }));
+    const partial = (p.year === '2026');
+    g.appendChild(tx(p.year + (partial ? ' ⚠' : ''), { x: p.x, y: iH + 18, 'text-anchor': 'middle', fill: partial ? amber : t2, 'font-size': CHF.axis, 'font-family': 'RF Dewi,Inter,sans-serif' }));
+    const zone = el('rect', { x: p.x - 16, y: 0, width: 32, height: iH, fill: 'transparent' });
+    addHover(zone, () => `<div class="tt-title">${cat} · ${p.year}${p.year==='2026'?' (partial)':''}</div>
+      <div class="tt-row"><span>Amount</span><span class="tt-val">${fmtM(p.raw)}</span></div>
+      ${isPct ? `<div class="tt-row"><span>${_ceMode==='pctRev'?'% of Rev':'% of Cost'}</span><span class="tt-val">${p.plotted.toFixed(2)}%</span></div>` : ''}`);
+    g.appendChild(zone);
+  });
+  host.innerHTML = '';
+  host.appendChild(svg);
 }
 
 /* ══════════════════════════════════════════════
@@ -2716,47 +2878,47 @@ function renderPLCompare() {
     return `<td class="${cls ? cls+' ' : ''}mono">${fmtM(v)}</td>`;
   }
 
-  // % of section total (denominator passed in by caller)
   function pctCell(v, den) {
-    if (!den || den <= 0 || v === 0) return '<td class="dim">—</td>';
-    return `<td class="mono" style="color:var(--t3);font-size:12px">${(v/den*100).toFixed(1)}%</td>`;
+    if (!den || den === 0 || v === 0) return '<td class="dim">—</td>';
+    const p = v / den * 100;
+    return `<td class="mono" style="color:var(--t3)">${p.toFixed(1)}%</td>`;
   }
 
-  function row(label, vA, vB, indent, invertSign, isBold, extraCls, denA, denB) {
+  function row(label, vA, vB, indent, invertSign, isBold, extraCls, denom) {
     const pct = pctChange(vA, vB);
     let cls = '';
     if (isBold) cls += ' plc-total-row';
     if (indent) cls += ' plc-indent';
     if (extraCls) cls += ' ' + extraCls;
+    const denA = denom === 'rev' ? dA.rev_total : (denom === 'cost' ? dA.costs_total : 0);
+    const denB = denom === 'rev' ? dB.rev_total : (denom === 'cost' ? dB.costs_total : 0);
+    const pctA = denom ? pctCell(vA, denA) : '<td class="dim">—</td>';
+    const pctB = denom ? pctCell(vB, denB) : '<td class="dim">—</td>';
     return `<tr${cls?' class="'+cls.trim()+'"':''}>
       <td>${label}</td>
       ${valCell(vA, false)}
-      ${pctCell(vA, denA)}
+      ${pctA}
       ${valCell(vB, false)}
-      ${pctCell(vB, denB)}
+      ${pctB}
       ${chgCell(pct, invertSign, vA, vB)}
     </tr>`;
   }
 
   const rows = [];
 
-  // Denominators for % of section — Revenue & Profitability rows use rev_total, Cost rows use costs_total
-  const revDenA = dA.rev_total, revDenB = dB.rev_total;
-  const costDenA = dA.costs_total, costDenB = dB.costs_total;
-
   // ── REVENUE SECTION ──
   rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128181; Revenues</td></tr>`);
-  rows.push(row('Total Revenue', dA.rev_total, dB.rev_total, false, false, true, null, revDenA, revDenB));
+  rows.push(row('Total Revenue', dA.rev_total, dB.rev_total, false, false, true, null, 'rev'));
   if (dA.rev_corporate || dB.rev_corporate)
-    rows.push(row('Corporate', dA.rev_corporate, dB.rev_corporate, true, false, false, null, revDenA, revDenB));
+    rows.push(row('Corporate', dA.rev_corporate, dB.rev_corporate, true, false, false, null, 'rev'));
   if (dA.rev_private || dB.rev_private)
-    rows.push(row('Private', dA.rev_private, dB.rev_private, true, false, false, null, revDenA, revDenB));
+    rows.push(row('Private', dA.rev_private, dB.rev_private, true, false, false, null, 'rev'));
   if (dA.rev_sponsors || dB.rev_sponsors)
-    rows.push(row('Sponsors', dA.rev_sponsors, dB.rev_sponsors, true, false, false, null, revDenA, revDenB));
+    rows.push(row('Sponsors', dA.rev_sponsors, dB.rev_sponsors, true, false, false, null, 'rev'));
 
   // ── COSTS SECTION ──
   rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#128197; Costs</td></tr>`);
-  rows.push(row('Total Costs', dA.costs_total, dB.costs_total, false, true, true, null, costDenA, costDenB));
+  rows.push(row('Total Costs', dA.costs_total, dB.costs_total, false, true, true, null, 'cost'));
 
   // Cost clusters — fixed groupings
   const COST_CLUSTERS = [
@@ -2787,12 +2949,12 @@ function renderPLCompare() {
     const subB = groupCats.reduce((s,c) => s + (dB.costs_by_cat[c]||0), 0);
     if (subA === 0 && subB === 0) return;
 
-    rows.push(row(group.label, subA, subB, false, true, false, 'plc-cluster', costDenA, costDenB));
+    rows.push(row(group.label, subA, subB, false, true, false, 'plc-cluster', 'cost'));
     groupCats.forEach(cat => {
       const cA = dA.costs_by_cat[cat] || 0;
       const cB = dB.costs_by_cat[cat] || 0;
       if (cA === 0 && cB === 0) return;
-      rows.push(row(cat, cA, cB, true, true, false, null, costDenA, costDenB));
+      rows.push(row(cat, cA, cB, true, true, false, null, 'cost'));
     });
     // #A19 — Gross Profit after F&B cluster (Rev − HR − Rent − F&B)
     if (group.afterGross) {
@@ -2802,7 +2964,7 @@ function renderPLCompare() {
       const dcA = directCats.reduce((s,c) => s + (dA.costs_by_cat[c]||0), 0);
       const dcB = directCats.reduce((s,c) => s + (dB.costs_by_cat[c]||0), 0);
       const gpA = dA.rev_total - dcA, gpB = dB.rev_total - dcB;
-      rows.push(row('✦ Gross Profit (Rev − HR − Rent − F&B)', gpA, gpB, false, false, true, 'plc-ebit', revDenA, revDenB));
+      rows.push(row('✦ Gross Profit (Rev − HR − Rent − F&B)', gpA, gpB, false, false, true, 'plc-ebit', 'rev'));
       const gpPctA = dA.rev_total>0 ? gpA/dA.rev_total*100 : 0;
       const gpPctB = dB.rev_total>0 ? gpB/dB.rev_total*100 : 0;
       rows.push(`<tr class="plc-indent"><td>Gross Margin</td><td class="dim">—</td><td class="mono gold">${gpPctA.toFixed(1)}%</td><td class="dim">—</td><td class="mono gold">${gpPctB.toFixed(1)}%</td>${chgCell(gpPctB-gpPctA,false)}</tr>`);
@@ -2811,7 +2973,7 @@ function renderPLCompare() {
 
   // ── EBIT ──
   rows.push(`<tr class="plc-section-hdr"><td colspan="6">&#9878; Profitability</td></tr>`);
-  rows.push(row('EBIT', dA.ebit, dB.ebit, false, false, true, 'plc-ebit', revDenA, revDenB));
+  rows.push(row('EBIT', dA.ebit, dB.ebit, false, false, true, 'plc-ebit', 'rev'));
 
   // EBIT % rows
   const ebitPctA = dA.rev_total > 0 ? dA.ebit / dA.rev_total * 100 : 0;
@@ -2826,10 +2988,10 @@ function renderPLCompare() {
   </tr>`);
 
   // Taxes
-  rows.push(row('Taxes', dA.taxes, dB.taxes, true, true, false, null, revDenA, revDenB));
+  rows.push(row('Taxes', dA.taxes, dB.taxes, true, true, false, null, 'rev'));
 
   // EBIT after tax
-  rows.push(row('Net Profit (after tax)', dA.ebit_after_tax, dB.ebit_after_tax, false, false, true, 'plc-ebit', revDenA, revDenB));
+  rows.push(row('Net Profit (after tax)', dA.ebit_after_tax, dB.ebit_after_tax, false, false, true, 'plc-ebit', 'rev'));
 
   // Net margin
   const netPctA = dA.rev_total > 0 ? dA.ebit_after_tax / dA.rev_total * 100 : 0;
