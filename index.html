@@ -742,6 +742,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         <div style="font-size:var(--t-xs);color:var(--t3);flex-basis:100%">View mode controlled by the global toggle at the top. Default: same quarter YoY &mdash; % Change = (B &minus; A) / |A|. In % modes, Δ shown in pp (percentage points).</div>
       </div>
       <div id="plc-partial-warn" style="display:none;margin:0 0 var(--sp3);padding:var(--sp2) var(--sp3);background:rgba(var(--amber-rgb,255,176,32),.08);border:1px solid var(--amber);border-left:3px solid var(--amber);border-radius:6px;font-size:var(--t-xs);color:var(--t2)"></div>
+      <div class="insight-box" id="plc-highlights" style="margin-bottom:var(--sp3);display:none"></div>
       <div class="tbl-wrap">
         <table class="plc-table" id="plc-table">
           <thead>
@@ -4016,6 +4017,105 @@ function initPLCompare() {
   renderPLCompare();
 }
 
+function _plcRenderHighlights(dA, dB, labelA, labelB){
+  const box = document.getElementById('plc-highlights');
+  if (!box) return;
+  if (!dA || !dB){ box.style.display='none'; return; }
+
+  const items = [];
+  const fmtPctSigned = v => (v>=0?'+':'') + v.toFixed(1) + '%';
+  const fmtPpSigned  = v => (v>=0?'+':'') + v.toFixed(1) + 'pp';
+  const fmtMSigned   = v => (v>=0?'+':'') + fmtM(v);
+  const color = (good) => good ? 'var(--pos)' : 'var(--neg)';
+  const tag = (txt, good) => `<strong style="color:${color(good)}">${txt}</strong>`;
+
+  // Revenue
+  const rA = dA.rev_total||0, rB = dB.rev_total||0;
+  const dRev = rB - rA;
+  const pRev = rA ? (dRev/Math.abs(rA)*100) : null;
+  if (rA || rB){
+    const good = dRev >= 0;
+    items.push(`Revenue: ${fmtM(rA)} → ${fmtM(rB)} (${tag(fmtMSigned(dRev) + (pRev!==null?` · ${fmtPctSigned(pRev)}`:''), good)}).`);
+  }
+
+  // EBIT + margin
+  const eA = dA.ebit||0, eB = dB.ebit||0;
+  const dEbit = eB - eA;
+  if (eA || eB){
+    const good = dEbit >= 0;
+    items.push(`EBIT: ${fmtM(eA)} → ${fmtM(eB)} (${tag(fmtMSigned(dEbit), good)}).`);
+  }
+  const mA = rA>0 ? eA/rA*100 : 0;
+  const mB = rB>0 ? eB/rB*100 : 0;
+  if (rA>0 && rB>0){
+    const dM = mB - mA;
+    const good = dM >= 0;
+    items.push(`EBIT margin: ${mA.toFixed(1)}% → ${mB.toFixed(1)}% (${tag(fmtPpSigned(dM), good)}).`);
+  }
+
+  // Biggest cost category movers (₽)
+  const catsA = dA.costs_by_cat || {};
+  const catsB = dB.costs_by_cat || {};
+  const allCats = new Set([...Object.keys(catsA), ...Object.keys(catsB)]);
+  const movers = [];
+  for (const c of allCats){
+    const a = catsA[c]||0, b = catsB[c]||0;
+    if (a===0 && b===0) continue;
+    movers.push({ c, a, b, d: b - a, p: a ? (b-a)/Math.abs(a)*100 : null });
+  }
+  if (movers.length){
+    const up   = movers.slice().sort((x,y) => y.d - x.d)[0];
+    const down = movers.slice().sort((x,y) => x.d - y.d)[0];
+    if (up && up.d > 0){
+      const pStr = up.p!==null ? ` (${fmtPctSigned(up.p)})` : '';
+      items.push(`Biggest cost increase: ${up.c} ${tag(fmtMSigned(up.d) + pStr, false)}.`);
+    }
+    if (down && down.d < 0){
+      const pStr = down.p!==null ? ` (${fmtPctSigned(down.p)})` : '';
+      items.push(`Biggest cost drop: ${down.c} ${tag(fmtMSigned(down.d) + pStr, true)}.`);
+    }
+  }
+
+  // Revenue mix shift — segment that grew most share
+  const segs = [
+    { k:'rev_corporate', label:'Corporate' },
+    { k:'rev_private',   label:'Private' },
+    { k:'rev_sponsors',  label:'Sponsors' }
+  ];
+  if (rA>0 && rB>0){
+    const shifts = segs
+      .filter(s => (dA[s.k]||0) || (dB[s.k]||0))
+      .map(s => {
+        const sA = (dA[s.k]||0)/rA*100;
+        const sB = (dB[s.k]||0)/rB*100;
+        return { label:s.label, d: sB - sA };
+      });
+    if (shifts.length){
+      const top = shifts.slice().sort((x,y) => Math.abs(y.d) - Math.abs(x.d))[0];
+      if (top && Math.abs(top.d) >= 0.5){
+        const good = top.d >= 0;
+        items.push(`Revenue mix: ${top.label} share ${tag(fmtPpSigned(top.d), good)}.`);
+      }
+    }
+  }
+
+  // Coverage caveat
+  const mCovA = dA._monthsCovered||0, mExpA = dA._monthsExpected||0;
+  const mCovB = dB._monthsCovered||0, mExpB = dB._monthsExpected||0;
+  if (mCovA && mCovB && mCovA !== mCovB){
+    items.push(`<span style="color:var(--amber)">&#9888;</span> Coverage differs: A = ${mCovA}mo, B = ${mCovB}mo — % change is <strong>not like-for-like</strong>.`);
+  } else if ((mCovA && mExpA && mCovA < mExpA) || (mCovB && mExpB && mCovB < mExpB)){
+    items.push(`<span style="color:var(--amber)">&#9888;</span> At least one period is partial — treat deltas as preliminary.`);
+  }
+
+  if (!items.length){ box.style.display='none'; return; }
+
+  box.style.display = '';
+  box.innerHTML =
+    '<div class="insight-title">&#128161; Highlights — ' + labelA + ' vs ' + labelB + '</div>' +
+    items.map(b => '<div class="insight-item"><span class="insight-dot">&#9670;</span><span>'+b+'</span></div>').join('');
+}
+
 function renderPLCompare() {
   const thA  = document.getElementById('plc-th-a');
   const thB  = document.getElementById('plc-th-b');
@@ -4087,10 +4187,12 @@ function renderPLCompare() {
 
   if (!atomsA.length || !atomsB.length) {
     body.innerHTML = '<tr><td colspan="'+colspan+'" style="color:var(--t3);padding:20px">Select at least one period for both sides.</td></tr>';
+    _plcRenderHighlights(null, null);
     return;
   }
   if (!dA || !dB) {
     body.innerHTML = '<tr><td colspan="'+colspan+'" style="color:var(--t3);padding:20px">No data available for the selected periods.</td></tr>';
+    _plcRenderHighlights(null, null);
     return;
   }
 
@@ -4263,6 +4365,7 @@ function renderPLCompare() {
   rows.push(marginRow('Net Margin', netPctA, netPctB, false));
 
   body.innerHTML = rows.join('');
+  _plcRenderHighlights(dA, dB, labelA, labelB);
 }
 
 /* ══════════════════════════════════════════════
