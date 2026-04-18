@@ -582,12 +582,19 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128200;</span> Cost Breakdown by Year — Last 5 Years</div>
-        <div class="pills" role="group" aria-label="Cost comparison period">
-          <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
-          <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
-          <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
-          <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
-          <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
+        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
+          <div class="pills" role="group" aria-label="Cost comparison period">
+            <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
+            <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
+            <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
+            <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
+            <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
+          </div>
+          <div class="pills" role="group" aria-label="Value mode">
+            <button class="pill on" id="pcc-vm-abs"     onclick="setViewMode('abs')"     title="Show absolute ruble values">&#8381; Absolute</button>
+            <button class="pill"    id="pcc-vm-pctRev"  onclick="setViewMode('pctRev')"  title="Show values as % of period revenue">% Revenue</button>
+            <button class="pill"    id="pcc-vm-pctCost" onclick="setViewMode('pctCost')" title="Show values as % of period costs — 100% stacked">% Costs</button>
+          </div>
         </div>
       </div>
       <div style="font-size:var(--t-xs);color:var(--t3);margin-bottom:var(--sp2)">
@@ -1413,6 +1420,8 @@ function setViewMode(m) {
   ['abs','pctRev','pctCost'].forEach(k => {
     const b = document.getElementById('vm-'+k);
     if (b) b.classList.toggle('on', k === m);
+    const b2 = document.getElementById('pcc-vm-'+k);
+    if (b2) b2.classList.toggle('on', k === m);
   });
   // Re-render every view that depends on viewMode
   try { delete _built['stack']; delete _built['cost-compare']; } catch(_){}
