@@ -275,14 +275,6 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 /* category drill tooltip badge */
 .cat-drill-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;color:inherit}
 .cat-drill-link:hover{color:var(--gold)}
-/* modal overlay for client drill-down */
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding:var(--sp5);overflow-y:auto}
-.modal-backdrop.open{display:flex}
-.modal-dialog{background:var(--card);border:1px solid var(--b2);border-radius:var(--r-lg);width:100%;max-width:960px;margin-top:var(--sp6);box-shadow:0 24px 64px rgba(0,0,0,.5);max-height:calc(100vh - var(--sp8));display:flex;flex-direction:column;overflow:hidden}
-.modal-dialog .card-hdr{border-bottom:1px solid var(--b1);padding-bottom:var(--sp3);margin-bottom:var(--sp3)}
-.modal-body{padding:var(--sp5);overflow-y:auto}
-.modal-body .chart-wrap{min-height:380px}
-@media(max-width:600px){.modal-body .chart-wrap{min-height:260px}}
 
 @media(max-width:600px){
   .chart-insight{grid-template-columns:1fr!important}
@@ -635,19 +627,14 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         </table>
       </div>
     </div>
-  </div>
-
-  <!-- Per-client 5-year trend modal (shown when a client row is selected) -->
-  <div class="modal-backdrop" id="client-detail-backdrop" onclick="if(event.target===this) closeClientDetail()" aria-hidden="true">
-    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="client-detail-title">
-      <div class="modal-body">
-        <div class="card-hdr">
-          <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
-          <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
-        </div>
-        <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp4);font-size:var(--t-sm);color:var(--t2)"></div>
-        <div class="chart-wrap" id="client-trend-chart"></div>
+    <!-- Per-client 5-year trend (shown when a client row is selected) -->
+    <div class="card" id="client-detail-card" style="display:none;margin-bottom:0">
+      <div class="card-hdr">
+        <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
+        <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
       </div>
+      <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
+      <div class="chart-wrap" id="client-trend-chart"></div>
     </div>
   </div>
 
@@ -665,7 +652,8 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128666;</span> Supplier Spend Ranking</div>
         <div class="pills" style="gap:4px;flex-wrap:wrap" role="group" aria-label="Supplier categories">
-          <button class="pill on" id="psp-food"  onclick="toggleSupplierCat('food')"  title="Toggle Food &amp; Beverage suppliers">Food &amp; Bev</button>
+          <button class="pill on" id="psp-food"  onclick="toggleSupplierCat('food')"  title="Toggle Food suppliers">Food</button>
+          <button class="pill on" id="psp-bev"   onclick="toggleSupplierCat('bev')"   title="Toggle Beverage &amp; Alcohol suppliers">Beverages</button>
           <button class="pill on" id="psp-rent"  onclick="toggleSupplierCat('rent')"  title="Toggle Rent &amp; Maintenance suppliers">Rent</button>
           <button class="pill on" id="psp-mkt"   onclick="toggleSupplierCat('mkt')"   title="Toggle Marketing suppliers">Marketing</button>
           <button class="pill on" id="psp-other" onclick="toggleSupplierCat('other')" title="Toggle all other categories">Other</button>
@@ -2269,8 +2257,10 @@ function buildCostCompareChart() {
     const rows = catWithTotals.map(({c, total}) => {
       const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CAT_COLORS[c]||'#989693'};margin-right:6px;vertical-align:middle"></span>`;
       const cells = slots.map(sl => `<td class="mono dim">${fmtTblCell(sl.cats[c]||0, sl)}</td>`).join('');
-      const sel = _ccSelectedCat === c ? ' selected' : '';
-      return `<tr class="tree-row client-row${sel}" onclick='toggleCostCompareDetail(${JSON.stringify(c)})' title="Click to see this category's 5-year trend"><td class="bold">${dot}${c}</td>${cells}<td class="mono">${fmtTotCell(total, denSum)}</td></tr>`;
+      const isSel = _ccSelectedCat === c;
+      const sel = isSel ? ' selected' : '';
+      const chev = `<span style="display:inline-block;width:10px;color:var(--t3);margin-right:4px;transition:transform .15s;transform:rotate(${isSel?90:0}deg)">▸</span>`;
+      return `<tr class="tree-row client-row${sel}" onclick='toggleCostCompareDetail(${JSON.stringify(c)})' title="Click to see this category's 5-year trend"><td class="bold">${chev}${dot}${c}</td>${cells}<td class="mono">${fmtTotCell(total, denSum)}</td></tr>`;
     }).join('');
     tbl.innerHTML = `<table class="tbl-sticky-first">
       <thead><tr><th>Category</th>${colHdr}<th>5-yr total</th></tr></thead>
@@ -2299,7 +2289,13 @@ function toggleCostCompareDetail(cat){
   buildCostCompareChart();
   const host = document.getElementById('cost-compare-detail');
   if (host) host.style.display = '';
-  requestAnimationFrame(() => renderCostCompareDetail(cat));
+  requestAnimationFrame(() => {
+    renderCostCompareDetail(cat);
+    // Nudge the expansion into view on mobile / when the row is at the bottom
+    requestAnimationFrame(() => {
+      if (host) host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
 }
 
 function renderCostCompareDetail(cat){
@@ -2868,32 +2864,28 @@ function buildClientsBarChart() {
   document.getElementById(cId).appendChild(svg);
 }
 
-/* ── Per-client 5-year trend drill-down (modal) ── */
+/* ── Per-client 5-year trend drill-down (inline) ── */
 function selectClient(name){
   const c = TOP_CLIENTS.find(x => x.n === name);
   if (!c) return;
   if (selectedClient === name){ closeClientDetail(); return; }
   selectedClient = name;
   renderClientTable();
-  const bd = document.getElementById('client-detail-backdrop');
-  bd.classList.add('open');
-  bd.setAttribute('aria-hidden','false');
-  document.body.style.overflow = 'hidden';
-  // Modal dialog is now visible; render inside an rAF so widths measure correctly.
-  requestAnimationFrame(() => renderClientDetail(c));
+  const card = document.getElementById('client-detail-card');
+  if (card) card.style.display = '';
+  requestAnimationFrame(() => {
+    renderClientDetail(c);
+    if (card) card.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
 }
 function closeClientDetail(){
   selectedClient = null;
-  const bd = document.getElementById('client-detail-backdrop');
-  if (bd){ bd.classList.remove('open'); bd.setAttribute('aria-hidden','true'); }
-  document.body.style.overflow = '';
+  const card = document.getElementById('client-detail-card');
+  if (card) card.style.display = 'none';
   renderClientTable();
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    const bd = document.getElementById('client-detail-backdrop');
-    if (bd && bd.classList.contains('open')) closeClientDetail();
-  }
+  if (e.key === 'Escape' && selectedClient) closeClientDetail();
 });
 
 function renderClientDetail(c){
@@ -3020,11 +3012,12 @@ function buildClientTrendChart(vals){
 /* ══════════════════════════════════════════════
    SUPPLIERS TAB
 ══════════════════════════════════════════════ */
-let supCatFilter = new Set(['food','rent','mkt','other']);
+let supCatFilter = new Set(['food','bev','rent','mkt','other']);
 let supPeriodFilter = STATE.supPeriodFilter;
 let selectedSupplier = null;
 const CAT_GROUP = {
-  'food': ['Food','Wine and Alcohol','Beverages'],
+  'food': ['Food'],
+  'bev':  ['Beverages','Wine and Alcohol'],
   'rent': ['Rent & Maintenance'],
   'mkt': ['Marketing','Marketing - website'],
   'other': ['IT','Maintenance','Stationery/Chemical consumables','Kitchen - equipment','General expenses','Subcontractors','Aprons']
@@ -3106,12 +3099,12 @@ function supCatMatch(sup, catSet) {
 }
 
 function _syncSupCatPills() {
-  ['food','rent','mkt','other'].forEach(k => {
+  ['food','bev','rent','mkt','other'].forEach(k => {
     const btn = document.getElementById('psp-'+k);
     if (btn) btn.classList.toggle('on', supCatFilter.has(k));
   });
   const allBtn = document.getElementById('psp-all-cats');
-  if (allBtn) allBtn.classList.toggle('on', supCatFilter.size === 4);
+  if (allBtn) allBtn.classList.toggle('on', supCatFilter.size === 5);
 }
 
 function _supCatChanged() {
@@ -3131,7 +3124,7 @@ function toggleSupplierCat(g) {
 }
 
 function selectAllSupplierCats() {
-  supCatFilter = new Set(['food','rent','mkt','other']);
+  supCatFilter = new Set(['food','bev','rent','mkt','other']);
   _supCatChanged();
 }
 
