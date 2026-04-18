@@ -2335,13 +2335,24 @@ function getClientPrevPeriodData(client, filter) {
   if (Array.isArray(filter)) {
     return filter.reduce((s, f) => s + getClientPrevPeriodData(client, f), 0);
   }
+  if (filter === 'all' || filter === 'full') return 0;
   const yrs = client.years;
   if (filter === 'ytd26') {
-    // Q1+Apr 2025 comparison — String key works for both array and sparse dict
     const y = yrs['2025'];
     if (!y) return 0;
     const lm=LAST_MONTH;
     return Array.from({length:lm},(_,i)=>i+1).reduce((s,m) => s + (y.m[String(m)]||0), 0);
+  }
+  if (filter === 'q1-26') {
+    return getClientPeriodData(client, 'q1-25');
+  }
+  let m = filter.match(/^q(\d)-(\d{2})$/);
+  if (m) {
+    return getClientPeriodData(client, `q${+m[1]}-${String(+m[2]-1).padStart(2,'0')}`);
+  }
+  m = filter.match(/^m(\d{1,2})-(\d{4})$/);
+  if (m) {
+    return getClientPeriodData(client, `m${m[1]}-${+m[2]-1}`);
   }
   const yr = parseInt(filter);
   if (isNaN(yr)) return 0;
@@ -2647,6 +2658,7 @@ function getSupplierPrevAmount(sup, period) {
   if (Array.isArray(period)) {
     return period.reduce((s, p) => s + getSupplierPrevAmount(sup, p), 0);
   }
+  if (period === 'full') return 0;
   if (period === 'ytd26') {
     // Jan-Apr 2025 — use pre-aggregated if available
     if (sup._t) return sup._t.prev_ytd;
@@ -2656,6 +2668,15 @@ function getSupplierPrevAmount(sup, period) {
       if (y25) { const lm=LAST_MONTH; for(let m=1;m<=lm;m++) t+=(y25.m[String(m)]||0); }
     }
     return t;
+  }
+  let m = period.match(/^q(\d)-(\d{2})$/);
+  if (m) {
+    const qn = +m[1], yy = +m[2];
+    return getSupplierAmount(sup, `q${qn}-${String(yy-1).padStart(2,'0')}`);
+  }
+  m = period.match(/^m(\d{1,2})-(\d{4})$/);
+  if (m) {
+    return getSupplierAmount(sup, `m${m[1]}-${+m[2]-1}`);
   }
   const yr = parseInt(period);
   if (isNaN(yr)) return 0;
