@@ -60,6 +60,9 @@ svg{display:block;overflow:hidden} button{font-family:inherit}
 .theme-btn:hover{background:var(--gold-d);border-color:var(--gold)}
 .pdf-btn{display:flex;align-items:center;gap:6px;padding:0 14px;height:44px;border-radius:var(--r-md);background:var(--gold);border:none;color:#fff;font-size:var(--t-sm);font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .2s}
 .pdf-btn:hover{opacity:.85}
+.pdf-btn.report-btn{background:var(--blue,#4f8ef7)}
+.pdf-btn.report-btn:hover{opacity:.85}
+.pdf-btn:disabled{opacity:.6;cursor:wait}
 
 /* SUMMARY */
 .summary-wrap{background:var(--card);border:1px solid var(--b1);border-radius:var(--r-lg);margin-bottom:var(--sp5);overflow:hidden}
@@ -306,9 +309,13 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     </div>
     <div class="topbar-r">
       <span class="badge">YTD 2026</span>
-      <button class="pdf-btn" onclick="exportPDF()" aria-label="Export dashboard as PDF">
+      <button class="pdf-btn" onclick="exportPDF()" aria-label="Export current view as PDF" title="Export just the currently visible tab to a PDF">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export PDF
+      </button>
+      <button class="pdf-btn report-btn" onclick="generateReport()" aria-label="Generate full multi-page report" title="Sweep every tab at current period and view mode, stitch into a single multi-page PDF">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+        Generate Report
       </button>
       <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle dark/light theme">&#9788;</button>
     </div>
@@ -2124,6 +2131,139 @@ async function exportPDF(){
       if(btn){btn.innerHTML=orig;btn.disabled=false;}
     });
   },200);
+}
+
+// ── Multi-tab report: sweeps every tab at the current Period + View mode and stitches them into one PDF ──
+const REPORT_TABS = [
+  { id: 'overview',  title: 'Overview' },
+  { id: 'clients',   title: 'Top Clients' },
+  { id: 'breakdown', title: 'Cost Breakdown' },
+  { id: 'suppliers', title: 'Top Suppliers' },
+  { id: 'costevo',   title: 'Cost Evolution' },
+  { id: 'plcompare', title: 'P&L Compare' }
+];
+
+function _viewModeLabel(){
+  return STATE.viewMode === 'abs' ? '₽ Absolute'
+       : STATE.viewMode === 'pctRev' ? '% of Revenue'
+       : '% of Costs';
+}
+
+async function generateReport(){
+  const btn = document.querySelector('.report-btn');
+  const orig = btn ? btn.innerHTML : '';
+  const originalTab = (document.querySelector('.tab-btn.on')||{}).id?.replace('tab-','') || 'overview';
+  const sb = document.getElementById('sum-body');
+  const wasOpen = sb && sb.classList.contains('open');
+  if (sb && wasOpen) sb.classList.remove('open'); // compact report
+
+  if (btn){ btn.innerHTML = 'Generating…'; btn.disabled = true; }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const usableW = pageW - margin*2;
+  const usableH = pageH - margin*2;
+  const bg = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1a1520';
+
+  const gold = (getComputedStyle(document.documentElement).getPropertyValue('--gold')||'#d4a84a').trim();
+  const t1   = (getComputedStyle(document.documentElement).getPropertyValue('--t1')  ||'#1a1520').trim();
+  const t2   = (getComputedStyle(document.documentElement).getPropertyValue('--t2')  ||'#555').trim();
+
+  // ── Cover page ──
+  pdf.setFillColor(bg);
+  pdf.rect(0, 0, pageW, pageH, 'F');
+  pdf.setTextColor(gold);
+  pdf.setFont('helvetica','bold');
+  pdf.setFontSize(28);
+  pdf.text('EventyON — P&L Report', margin, 40);
+  pdf.setTextColor(t1);
+  pdf.setFontSize(14);
+  pdf.setFont('helvetica','normal');
+  pdf.text('Corporate Event Management', margin, 52);
+  pdf.setDrawColor(gold);
+  pdf.setLineWidth(0.8);
+  pdf.line(margin, 58, margin+80, 58);
+
+  pdf.setTextColor(t2);
+  pdf.setFontSize(12);
+  const coverLines = [
+    'Period: ' + (typeof _globalPeriodLabel === 'function' ? _globalPeriodLabel() : '—'),
+    'View mode: ' + _viewModeLabel(),
+    'Generated: ' + new Date().toLocaleString(),
+    '',
+    'Contents:'
+  ];
+  let y = 74;
+  coverLines.forEach(l => { pdf.text(l, margin, y); y += 7; });
+  pdf.setTextColor(t1);
+  REPORT_TABS.forEach((t, i) => {
+    pdf.text('  ' + (i+2) + '.  ' + t.title, margin, y);
+    y += 7;
+  });
+
+  // ── Per-tab pages ──
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const raf  = ()  => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  for (const t of REPORT_TABS){
+    showTab(t.id);
+    await raf();
+    await wait(450); // let charts render + fonts settle
+
+    const panel = document.getElementById('panel-' + t.id);
+    if (!panel) continue;
+    try{
+      const canvas = await html2canvas(panel, { scale: 2, useCORS: true, logging: false, backgroundColor: bg });
+      const imgW = canvas.width;
+      const mmPerPx = usableW / imgW;
+      const sliceHpx = Math.floor(usableH / mmPerPx);
+
+      let srcY = 0, first = true;
+      while (srcY < canvas.height){
+        pdf.addPage();
+        pdf.setFillColor(bg);
+        pdf.rect(0, 0, pageW, pageH, 'F');
+
+        // header strip
+        pdf.setTextColor(gold);
+        pdf.setFont('helvetica','bold');
+        pdf.setFontSize(10);
+        pdf.text(t.title.toUpperCase(), margin, margin + 2);
+        pdf.setTextColor(t2);
+        pdf.setFont('helvetica','normal');
+        const meta = (typeof _globalPeriodLabel === 'function' ? _globalPeriodLabel() : '') + ' · ' + _viewModeLabel();
+        pdf.text(meta, pageW - margin, margin + 2, { align: 'right' });
+
+        const sliceH = Math.min(sliceHpx, canvas.height - srcY);
+        const strip = document.createElement('canvas');
+        strip.width = imgW; strip.height = sliceH;
+        strip.getContext('2d').drawImage(canvas, 0, srcY, imgW, sliceH, 0, 0, imgW, sliceH);
+        const imgHmm = sliceH * mmPerPx;
+        pdf.addImage(strip.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin + 4, usableW, imgHmm);
+
+        srcY += sliceHpx;
+        first = false;
+      }
+    } catch(err){
+      console.error('Report page failed for', t.id, err);
+      pdf.addPage();
+      pdf.setFillColor(bg); pdf.rect(0, 0, pageW, pageH, 'F');
+      pdf.setTextColor(t2); pdf.setFontSize(12);
+      pdf.text('Could not render tab: ' + t.title, margin, 40);
+    }
+  }
+
+  // restore
+  showTab(originalTab);
+  if (sb && wasOpen) sb.classList.add('open');
+
+  const datestr = new Date().toISOString().slice(0,10);
+  pdf.save('EventyON_PL_Report_' + datestr + '.pdf');
+
+  if (btn){ btn.innerHTML = orig; btn.disabled = false; }
 }
 
 /* ══════════════════════════════════════════════
