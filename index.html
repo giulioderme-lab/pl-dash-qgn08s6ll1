@@ -3089,42 +3089,65 @@ function _ceBuildInsights(){
   const tot25 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2025'),0);
   const tot24 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2024'),0);
   const tot26 = CE_CATS.reduce((s,c)=>s+_ceCellValue(c,'2026'),0);
+  const has26 = tot26 > 0 && _ce2026DataComplete();
   const rows = CE_CATS.map(cat => {
     const v25 = _ceCellValue(cat,'2025'), v24 = _ceCellValue(cat,'2024'), v26 = _ceCellValue(cat,'2026');
-    const deltaAbs = v25 - v24;
-    const deltaPct = v24>0 ? (deltaAbs/v24*100) : null;
+    const d2524 = v25 - v24;
+    const p2524 = v24>0 ? (d2524/v24*100) : null;
+    const d2625 = v26 - v25;
+    const p2625 = v25>0 ? (d2625/v25*100) : null;
     const share25 = tot25>0 ? v25/tot25*100 : 0;
-    return { cat, v24, v25, v26, deltaAbs, deltaPct, share25 };
-  }).filter(r => r.v25>0 || r.v24>0);
+    const share26 = tot26>0 ? v26/tot26*100 : 0;
+    return { cat, v24, v25, v26, d2524, p2524, d2625, p2625, share25, share26 };
+  }).filter(r => r.v25>0 || r.v24>0 || r.v26>0);
   if (!rows.length) return ['No category data in the selected period.'];
 
   const items = [];
-  // 1. Period-level total
-  const totDelta = tot25 - tot24;
-  const totDeltaPct = tot24>0 ? (totDelta/tot24*100) : null;
-  const margin25 = rev25>0 ? (1 - tot25/rev25)*100 : null;
-  items.push(`Total costs ${lbl} 2025 ${fmtM(tot25)} vs ${lbl} 2024 ${fmtM(tot24)} — ${totDelta>=0?'+':''}${fmtM(totDelta)}${totDeltaPct!=null ? ' ('+(totDeltaPct>=0?'+':'')+totDeltaPct.toFixed(1)+'%)':''} YoY.`);
-  if (rev25>0) items.push(`Cost ratio ${lbl} 2025: ${(tot25/rev25*100).toFixed(1)}% of revenue (margin ${margin25!=null?margin25.toFixed(1)+'%':'—'}).`);
 
-  // 2. Biggest category & its share
-  const byShare = [...rows].sort((a,b)=>b.share25-a.share25);
-  const top = byShare[0];
-  if (top && top.share25>0) items.push(`Largest line ${lbl} 2025: ${top.cat} at ${fmtM(top.v25)} (${top.share25.toFixed(1)}% of total costs).`);
-
-  // 3. Biggest YoY mover (abs ₽)
-  const movers = rows.filter(r => r.v24>0 && r.v25>0 && r.deltaPct!=null);
-  if (movers.length){
-    const up = [...movers].sort((a,b)=>b.deltaAbs-a.deltaAbs)[0];
-    const down = [...movers].sort((a,b)=>a.deltaAbs-b.deltaAbs)[0];
-    if (up && up.deltaAbs>0) items.push(`Biggest increase 24→25: ${up.cat} ${up.deltaAbs>=0?'+':''}${fmtM(up.deltaAbs)} (${up.deltaPct>=0?'+':''}${up.deltaPct.toFixed(1)}%).`);
-    if (down && down.deltaAbs<0) items.push(`Biggest drop 24→25: ${down.cat} ${fmtM(down.deltaAbs)} (${down.deltaPct.toFixed(1)}%).`);
-  }
-
-  // 4. 2026 vs 2025 same-period pace (skip when 2026 has incomplete data for the slice)
-  if (tot26>0 && tot25>0 && _ce2026DataComplete()){
+  if (has26){
+    // Lead with 2026 vs 2025 — most recent actionable comparison
     const paceDelta = tot26 - tot25;
-    const pacePct = (paceDelta/tot25*100);
-    items.push(`2026 ${lbl} costs ${fmtM(tot26)} — ${paceDelta>=0?'+':''}${fmtM(paceDelta)} (${pacePct>=0?'+':''}${pacePct.toFixed(1)}%) vs 2025 same period.`);
+    const pacePct = tot25>0 ? (paceDelta/tot25*100) : null;
+    const margin26 = rev26>0 ? (1 - tot26/rev26)*100 : null;
+    items.push(`Total costs ${lbl} 2026 ${fmtM(tot26)} vs ${lbl} 2025 ${fmtM(tot25)} — ${paceDelta>=0?'+':''}${fmtM(paceDelta)}${pacePct!=null ? ' ('+(pacePct>=0?'+':'')+pacePct.toFixed(1)+'%)':''} YoY.`);
+    if (rev26>0) items.push(`Cost ratio ${lbl} 2026: ${(tot26/rev26*100).toFixed(1)}% of revenue (margin ${margin26!=null?margin26.toFixed(1)+'%':'—'}).`);
+
+    const byShare = [...rows].sort((a,b)=>b.share26-a.share26);
+    const top = byShare[0];
+    if (top && top.share26>0) items.push(`Largest line ${lbl} 2026: ${top.cat} at ${fmtM(top.v26)} (${top.share26.toFixed(1)}% of total costs).`);
+
+    const movers = rows.filter(r => r.v25>0 && r.v26>0 && r.p2625!=null);
+    if (movers.length){
+      const up = [...movers].sort((a,b)=>b.d2625-a.d2625)[0];
+      const down = [...movers].sort((a,b)=>a.d2625-b.d2625)[0];
+      if (up && up.d2625>0) items.push(`Biggest increase 25→26: ${up.cat} ${up.d2625>=0?'+':''}${fmtM(up.d2625)} (${up.p2625>=0?'+':''}${up.p2625.toFixed(1)}%).`);
+      if (down && down.d2625<0) items.push(`Biggest drop 25→26: ${down.cat} ${fmtM(down.d2625)} (${down.p2625.toFixed(1)}%).`);
+    }
+
+    // Secondary: 2025 vs 2024 historical baseline
+    if (tot24>0){
+      const d = tot25 - tot24, p = (d/tot24*100);
+      items.push(`2025 ${lbl} costs ${fmtM(tot25)} — ${d>=0?'+':''}${fmtM(d)} (${p>=0?'+':''}${p.toFixed(1)}%) vs 2024 same period.`);
+    }
+  } else {
+    // 2026 incomplete for this slice — lead with 2025 vs 2024
+    const totDelta = tot25 - tot24;
+    const totDeltaPct = tot24>0 ? (totDelta/tot24*100) : null;
+    const margin25 = rev25>0 ? (1 - tot25/rev25)*100 : null;
+    items.push(`Total costs ${lbl} 2025 ${fmtM(tot25)} vs ${lbl} 2024 ${fmtM(tot24)} — ${totDelta>=0?'+':''}${fmtM(totDelta)}${totDeltaPct!=null ? ' ('+(totDeltaPct>=0?'+':'')+totDeltaPct.toFixed(1)+'%)':''} YoY.`);
+    if (rev25>0) items.push(`Cost ratio ${lbl} 2025: ${(tot25/rev25*100).toFixed(1)}% of revenue (margin ${margin25!=null?margin25.toFixed(1)+'%':'—'}).`);
+
+    const byShare = [...rows].sort((a,b)=>b.share25-a.share25);
+    const top = byShare[0];
+    if (top && top.share25>0) items.push(`Largest line ${lbl} 2025: ${top.cat} at ${fmtM(top.v25)} (${top.share25.toFixed(1)}% of total costs).`);
+
+    const movers = rows.filter(r => r.v24>0 && r.v25>0 && r.p2524!=null);
+    if (movers.length){
+      const up = [...movers].sort((a,b)=>b.d2524-a.d2524)[0];
+      const down = [...movers].sort((a,b)=>a.d2524-b.d2524)[0];
+      if (up && up.d2524>0) items.push(`Biggest increase 24→25: ${up.cat} ${up.d2524>=0?'+':''}${fmtM(up.d2524)} (${up.p2524>=0?'+':''}${up.p2524.toFixed(1)}%).`);
+      if (down && down.d2524<0) items.push(`Biggest drop 24→25: ${down.cat} ${fmtM(down.d2524)} (${down.p2524.toFixed(1)}%).`);
+    }
   }
 
   return items;
