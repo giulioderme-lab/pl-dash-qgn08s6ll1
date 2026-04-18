@@ -1968,6 +1968,14 @@ const CAT_COLORS_CL = ['#d61393','#6c2275','#51ac8a','#de545c','#8e4da8','#f8bb8
 let clientFilter = STATE.clientFilter;
 let selectedClient = null;
 
+// Display-layer notes for specific client names — alias + historical context
+const CLIENT_NOTES = {
+  'ООО НКО "Яндекс.Деньги"': {
+    alias: 'Yandex Money',
+    note: 'Known in English as "Yandex Money" — same legal entity. Rebranded to YooMoney (ЮMoney) in July 2020 after Yandex divested its 75% stake to Sberbank. Revenue shown covers the pre-rebrand period (2016–2020).'
+  }
+};
+
 function getClientPeriodData(client, filter) {
   const yrs = client.years;
   if (filter === 'all') {
@@ -2048,9 +2056,12 @@ function renderClientTable() {
     const active26 = c.years && c.years['2026'] && c.years['2026'].t > 0;
     const sel = selectedClient === c.n ? ' selected' : '';
     const nameJson = JSON.stringify(c.n);
+    const note = CLIENT_NOTES[c.n];
+    const displayName = c.n.length>40?c.n.slice(0,39)+'…':c.n;
+    const aliasTag = note ? `<span style="font-size:var(--t-xs);color:var(--t3);font-weight:400;margin-left:6px">· ${note.alias}</span>` : '';
     return `<tr class="client-row${sel}" onclick='selectClient(${nameJson})' title="Click to see 5-year trend">
       <td class="mono dim">${i+1}</td>
-      <td class="bold">${c.n.length>40?c.n.slice(0,39)+'…':c.n}${active26?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-left:6px;vertical-align:middle" title="Active in 2026"></span>':''}</td>
+      <td class="bold">${displayName}${aliasTag}${active26?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-left:6px;vertical-align:middle" title="Active in 2026"></span>':''}</td>
       <td class="mono gold">${fmtM(c._v)}</td>
       <td class="mono muted">${share}</td>
       <td>${yoyStr}</td>
@@ -2178,15 +2189,30 @@ function renderClientDetail(c){
   const rangeLabel = `${years[0]}–${years[years.length-1]}`;
   const histTag = endYr < 2026 ? ' <span style="font-size:var(--t-xs);color:var(--amber);font-weight:600">· historical client</span>' : '';
 
-  document.getElementById('client-detail-title').innerHTML = c.n + ` — 5-Year Trend (${rangeLabel})` + histTag;
+  const noteInfo = CLIENT_NOTES[c.n];
+  const titleSuffix = noteInfo ? ` <span style="font-size:var(--t-sm);color:var(--t3);font-weight:400">(${noteInfo.alias})</span>` : '';
+  document.getElementById('client-detail-title').innerHTML = c.n + titleSuffix + ` — 5-Year Trend (${rangeLabel})` + histTag;
   const stat = (label, value, color) =>
     `<div><div style="font-size:var(--t-xs);color:var(--t3);text-transform:uppercase;letter-spacing:.5px">${label}</div>` +
     `<div class="mono bold" style="color:${color||'var(--t1)'};font-size:var(--t-md)">${value}</div></div>`;
-  document.getElementById('client-detail-stats').innerHTML =
+  const statsEl = document.getElementById('client-detail-stats');
+  statsEl.innerHTML =
     stat('5-yr total', fmtM(total)) +
     stat('Avg / active year', fmtM(avg)) +
     stat('Best year', best ? best.year + ' · ' + fmtM(best.v) : '—', 'var(--gold)') +
     stat(`${endYr} vs ${endYr-1} YoY`, yoyStr + (endYr === 2026 ? ' <span style="font-size:var(--t-xs);color:var(--t3)">(2026 partial)</span>' : ''), yoyCol);
+
+  // Historical note banner
+  const noteHostId = 'client-detail-note';
+  let noteHost = document.getElementById(noteHostId);
+  if (noteHost) noteHost.remove();
+  if (noteInfo) {
+    noteHost = document.createElement('div');
+    noteHost.id = noteHostId;
+    noteHost.style.cssText = 'margin:0 0 var(--sp4);padding:var(--sp2) var(--sp3);background:rgba(var(--amber-rgb,255,176,32),.08);border:1px solid var(--amber);border-left:3px solid var(--amber);border-radius:6px;font-size:var(--t-xs);color:var(--t2);line-height:1.5';
+    noteHost.innerHTML = `&#9432; <strong>${noteInfo.alias}</strong> — ${noteInfo.note}`;
+    statsEl.parentNode.insertBefore(noteHost, statsEl.nextSibling);
+  }
 
   buildClientTrendChart(vals);
 }
