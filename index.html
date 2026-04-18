@@ -812,21 +812,6 @@ const CAT_COLORS = {
   'Beverages':'#9fc5b2','Aprons':'#b3a58f','Stationery':'#d9c9bd','Bank expenses':'#7f828b'
 };
 
-const INSIGHTS = {
-  hist: [
-    'Revenue crossed ₽1,000 mln in 2023 and stabilised at ₽1,425.9 mln in both 2024 and 2025 — a 3× jump from the pre-COVID peak of ₽467.9 mln (2019).',
-    'Peak EBIT was ₽359.9 mln in 2024 (25.3% margin). 2025 saw slight margin compression to 22.9% as salary costs grew faster than revenue.',
-    '2020 was a COVID year but still generated ₽294.4 mln revenue at ₽38.9 mln profit — more resilient than many hospitality businesses.',
-    '2026 YTD is tracking well at ₽323.4 mln through April — roughly the same run rate as 2024–2025 on a monthly basis.'
-  ],
-  breakdown: [
-    'Salaries + Salaries-taxes = 50% of all 2026 costs — the largest and most fixed component.',
-    'Rent & Maintenance at ₽44.8 mln (17%) is the second largest cost — fairly flat month-to-month at ~₽10–13 mln.',
-    'Food, Wine & Beverages combined ₽34.5 mln (13%) — scales directly with event volume.',
-    'Subcontractors at ₽18.1 mln (7%) is the most variable cost — highest in Jan–Feb when large events require external crews.'
-  ]
-};
-
 /* ══════════════════════════════════════════════
    FORMATTERS
 ══════════════════════════════════════════════ */
@@ -927,7 +912,7 @@ function showTab(name){
 }
 /* ── TAB_BUILDERS map (#7) ── */
 const TAB_BUILDERS = {
-  overview:  ()=>{ lazyBuild('annstack',buildAnnualStackChart); lazyBuild('hist-ins',()=>renderInsight('hist-insights','hist')); renderAnnualTable(); },
+  overview:  ()=>{ lazyBuild('annstack',buildAnnualStackChart); lazyBuild('hist-ins',()=>renderInsight('hist-insights')); renderAnnualTable(); },
   breakdown: ()=>{ buildStackChart(); buildTreeTable(); buildCostCompareChart(); },
   clients:   ()=>{ renderClientTable(); lazyBuild('clients-bar',buildClientsBarChart); },
   suppliers: ()=>{ renderSupplierTable(); lazyBuild('sup-bar',buildSupplierBarChart); },
@@ -939,6 +924,64 @@ function renderTabCharts(name){ (TAB_BUILDERS[name]||(() =>{}))(); }
 /* ══════════════════════════════════════════════
    INSIGHT BOX
 ══════════════════════════════════════════════ */
+// Dynamic full-year insights computed from ANNUAL data
+function buildFullYearInsights(){
+  if (!ANNUAL || !ANNUAL.length) return ['No annual data available.'];
+  const rows = ANNUAL.map(r => ({
+    ...r,
+    margin: r.rev > 0 ? r.profit/r.rev*100 : null,
+    partial: r.year === 2026 && (LAST_MONTH||0) < 12
+  }));
+  const complete = rows.filter(r => !r.partial);
+  if (!complete.length) return ['No complete-year data available yet.'];
+
+  const items = [];
+
+  // Peak revenue (complete years)
+  const peak = complete.slice().sort((a,b) => b.rev - a.rev)[0];
+  items.push(`Peak revenue year: ${peak.year} at ${fmtM(peak.rev)} · ${peak.margin!=null?fmtPct(peak.margin)+' margin':''}.`);
+
+  // Latest vs previous complete year — YoY rev + margin
+  const lastComplete = complete[complete.length-1];
+  const prevComplete = complete[complete.length-2];
+  if (lastComplete && prevComplete){
+    const dRev = prevComplete.rev ? (lastComplete.rev - prevComplete.rev)/prevComplete.rev*100 : null;
+    const dProf = prevComplete.profit ? (lastComplete.profit - prevComplete.profit)/Math.abs(prevComplete.profit)*100 : null;
+    const marginDelta = (lastComplete.margin!=null && prevComplete.margin!=null) ? (lastComplete.margin - prevComplete.margin) : null;
+    const sign = v => (v==null?'—':(v>=0?'+':'')+v.toFixed(1));
+    const marginPart = marginDelta!=null ? ` · margin ${fmtPct(lastComplete.margin)} vs ${fmtPct(prevComplete.margin)} (${sign(marginDelta)}pp)` : '';
+    items.push(`FY ${lastComplete.year} vs FY ${prevComplete.year}: revenue ${fmtM(lastComplete.rev)} (${sign(dRev)}%) · profit ${fmtM(lastComplete.profit)} (${sign(dProf)}%)${marginPart}.`);
+  }
+
+  // Strongest margin year
+  const byMargin = complete.filter(r => r.margin!=null).sort((a,b) => b.margin - a.margin);
+  if (byMargin.length){
+    const m = byMargin[0];
+    items.push(`Strongest margin: ${m.year} at ${fmtPct(m.margin)} (profit ${fmtM(m.profit)}).`);
+  }
+
+  // Revenue growth streak (complete years only)
+  let streak = 0;
+  for (let i = complete.length-1; i > 0; i--){
+    if (complete[i].rev > complete[i-1].rev) streak++;
+    else break;
+  }
+  if (streak >= 2){
+    items.push(`Revenue has grown ${streak} consecutive years (through ${lastComplete.year}).`);
+  }
+
+  // 2026 YTD run rate (when partial)
+  const ytd = rows.find(r => r.partial);
+  if (ytd && LAST_MONTH > 0){
+    const annualized = ytd.rev / LAST_MONTH * 12;
+    const vsLast = lastComplete && lastComplete.rev ? (annualized - lastComplete.rev)/lastComplete.rev*100 : null;
+    const paceTag = vsLast!=null ? ` (${vsLast>=0?'+':''}${vsLast.toFixed(0)}% vs FY ${lastComplete.year})` : '';
+    items.push(`${ytd.year} YTD: ${fmtM(ytd.rev)} through ${LAST_MONTH} month${LAST_MONTH===1?'':'s'} — annualized pace ≈ ${fmtM(annualized)}${paceTag}.`);
+  }
+
+  return items;
+}
+
 // Dynamic period insights computed from PL_BY_PERIOD.quarters (YTD or By-Quarter mode)
 function buildPeriodInsights(){
   const data = getAnnualData();
@@ -973,12 +1016,12 @@ function buildPeriodInsights(){
   return items;
 }
 
-function renderInsight(containerId,key){
+function renderInsight(containerId){
   const box=document.getElementById(containerId);
   if(!box)return;
-  const usePeriod = (key==='hist' && annualMode!=='full');
-  const items = usePeriod ? buildPeriodInsights() : INSIGHTS[key];
-  let title = 'Key Insights';
+  const usePeriod = annualMode !== 'full';
+  const items = usePeriod ? buildPeriodInsights() : buildFullYearInsights();
+  let title = 'Key Insights — Full Year';
   if (usePeriod){
     const data = getAnnualData();
     const cur = data[data.length-1];
@@ -1098,7 +1141,7 @@ function setAnnualMode(m){
   renderAnnualTable();
   delete _built['annstack'];
   lazyBuild('annstack', buildAnnualStackChart);
-  renderInsight('hist-insights','hist');
+  renderInsight('hist-insights');
 }
 
 function toggleAnnualQuarter(q){
@@ -4422,7 +4465,7 @@ async function initDashboard(d) {
   // Double rAF: wait two frames so layout AND paint are settled before reading getBoundingClientRect
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     lazyBuild('annstack',buildAnnualStackChart);
-    lazyBuild('hist-ins',()=>renderInsight('hist-insights','hist'));
+    lazyBuild('hist-ins',()=>renderInsight('hist-insights'));
   }));
 }
 
