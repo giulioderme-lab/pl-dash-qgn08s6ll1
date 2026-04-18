@@ -187,6 +187,19 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 .plc-sel{height:36px;padding:0 var(--sp3);border-radius:var(--r-md);border:1px solid var(--b2);background:var(--kbg);color:var(--t1);font-family:var(--ff);font-size:var(--t-sm);font-weight:500;cursor:pointer;min-width:160px}
 .plc-sel:focus{outline:2px solid var(--blue);outline-offset:1px}
 .plc-vs{color:var(--t3);font-size:var(--t-sm);font-weight:700;padding:0 var(--sp2)}
+.plc-picker-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp3);margin-bottom:var(--sp2)}
+@media (max-width:720px){.plc-picker-grid{grid-template-columns:1fr}}
+.plc-picker-col{display:flex;flex-direction:column;gap:var(--sp2);padding:var(--sp3);border:1px solid var(--b1);border-radius:var(--r-md);background:var(--kbg)}
+.plc-col-hdr{display:flex;align-items:center;gap:var(--sp2);flex-wrap:wrap}
+.plc-summary{flex:1;min-width:0;font-weight:700;color:var(--t1);font-size:var(--t-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plc-mini-btn{height:24px;padding:0 var(--sp2);font-size:11px;font-weight:600;background:transparent;border:1px solid var(--b1);border-radius:4px;color:var(--t3);cursor:pointer;white-space:nowrap}
+.plc-mini-btn:hover{border-color:var(--gold);color:var(--gold)}
+.plc-picker{display:flex;flex-direction:column;gap:var(--sp1)}
+.plc-picker-row{display:flex;align-items:center;gap:var(--sp2);flex-wrap:wrap}
+.plc-picker-lbl{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;min-width:48px}
+.plc-picker .pills{flex-wrap:wrap}
+.plc-picker .pill{height:26px;padding:0 10px;font-size:11px}
+.plc-picker .pill.disabled{opacity:.3;pointer-events:none;cursor:not-allowed}
 
 /* TOOLTIP */
 .tt{position:fixed;z-index:9999;background:var(--card);border:1px solid var(--b2);border-radius:var(--r-md);padding:var(--sp3) var(--sp4);font-size:var(--t-sm);pointer-events:none;display:none;box-shadow:0 8px 24px rgba(0,0,0,.35);line-height:1.7;min-width:180px}
@@ -672,13 +685,26 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128301;</span> Period Selector</div>
       </div>
-      <div class="plc-selectors">
-        <span class="plc-sel-label">Period A</span>
-        <select class="plc-sel" id="plc-sel-a" onchange="renderPLCompare()"></select>
-        <span class="plc-vs">vs</span>
-        <span class="plc-sel-label">Period B</span>
-        <select class="plc-sel" id="plc-sel-b" onchange="renderPLCompare()"></select>
+      <div class="plc-picker-grid">
+        <div class="plc-picker-col">
+          <div class="plc-col-hdr">
+            <span class="plc-sel-label">Period A</span>
+            <span class="plc-summary" id="plc-sum-a">—</span>
+            <button class="plc-mini-btn" onclick="_plcClearSide('a')" title="Clear all selections for A">Clear</button>
+          </div>
+          <div class="plc-picker" id="plc-pick-a"></div>
+        </div>
+        <div class="plc-picker-col">
+          <div class="plc-col-hdr">
+            <span class="plc-sel-label">Period B</span>
+            <span class="plc-summary" id="plc-sum-b">—</span>
+            <button class="plc-mini-btn" onclick="_plcClearSide('b')" title="Clear all selections for B">Clear</button>
+            <button class="plc-mini-btn" onclick="_plcShiftPrevYear()" title="Set A = B shifted back 1 year (same periods, prior year)">A = B − 1Y</button>
+          </div>
+          <div class="plc-picker" id="plc-pick-b"></div>
+        </div>
       </div>
+      <div class="plc-hint" style="font-size:11px;color:var(--t3);margin-top:var(--sp1)">Select year(s), quarter(s), and/or month(s) for each side. Month-level data is available for 2026 only. Quarters alone default to the most recent complete year.</div>
     </div>
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
@@ -2954,145 +2980,299 @@ function _plcPeriodLabel(key) {
   return m ? `Q${m[2]} ${m[1]}` : `FY ${key}`;
 }
 
-function _plcIsQuarterPartial(qKey) {
-  // qKey like "2026 Q2"
-  const m = qKey.match(/^(\d{4}) Q(\d)$/);
-  if (!m) return false;
-  const y = parseInt(m[1]), q = parseInt(m[2]);
-  if (y === 2026) return (LAST_MONTH || 0) < q * 3;
-  return false;
-}
-function _plcIsYearPartial(yKey) {
-  return parseInt(yKey) === 2026 && (LAST_MONTH || 0) < 12;
-}
-function _plcPartialMonths(sel) {
-  // Returns number of months covered by the selected period
-  if (!sel) return 0;
-  if (sel.startsWith('q:')) {
-    const m = sel.slice(2).match(/^(\d{4}) Q(\d)$/);
-    if (!m) return 3;
-    const y = parseInt(m[1]), q = parseInt(m[2]);
-    if (y === 2026 && (LAST_MONTH || 0) < q * 3) {
-      return Math.max(0, (LAST_MONTH || 0) - (q-1)*3);
+/* ══════════════════════════════════════════════
+   MULTI-SELECT PERIOD PICKERS (A / B)
+   Each side independently selects any combination of:
+     • full years (2021–2026)
+     • quarters (Q1–Q4) — cross-product with selected years; default year = 2025
+     • months (2026 only, up to LAST_MONTH)
+   Months take priority: selecting months clears quarters; selecting quarters clears months.
+══════════════════════════════════════════════ */
+const PLC_YEARS  = ['2021','2022','2023','2024','2025','2026'];
+const PLC_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let _plcA = { years:new Set(), qtrs:new Set(), months:new Set() };
+let _plcB = { years:new Set(), qtrs:new Set(), months:new Set() };
+
+function _plcState(side){ return side==='a' ? _plcA : _plcB; }
+
+// Expand picker state to a list of atoms: {type:'y'|'q'|'m', year, q?, month?, key}
+function _plcExpand(s){
+  if (s.months.size > 0){
+    return [...s.months].sort((a,b)=>a-b).map(m => ({
+      type:'m', year:2026, q:Math.ceil(m/3), month:m, key:`2026 M${m}`
+    }));
+  }
+  if (s.qtrs.size > 0){
+    const years = s.years.size > 0 ? [...s.years].sort() : ['2025'];
+    const atoms = [];
+    for (const y of years){
+      for (const q of [...s.qtrs].sort((a,b)=>a-b)){
+        atoms.push({type:'q', year:parseInt(y), q, key:`${y} Q${q}`});
+      }
     }
+    return atoms;
+  }
+  if (s.years.size > 0){
+    return [...s.years].sort().map(y => ({type:'y', year:parseInt(y), key:String(y)}));
+  }
+  return [];
+}
+
+function _plcAtomMonthsCovered(atom){
+  if (atom.type==='y') return atom.year === 2026 ? Math.min(12, LAST_MONTH || 0) : 12;
+  if (atom.type==='q'){
+    if (atom.year === 2026) return Math.max(0, Math.min(3, (LAST_MONTH||0) - (atom.q-1)*3));
     return 3;
   }
-  if (sel.startsWith('y:')) {
-    const y = parseInt(sel.slice(2));
-    return y === 2026 ? (LAST_MONTH || 0) : 12;
-  }
+  if (atom.type==='m') return atom.month <= (LAST_MONTH||0) ? 1 : 0;
   return 0;
 }
-
-function initPLCompare() {
-  const selA = document.getElementById('plc-sel-a');
-  const selB = document.getElementById('plc-sel-b');
-  if (!selA || !selB) return;
-
-  // Build option list: all quarters (newest first) + all full years (newest first)
-  const qKeys = Object.keys(PL_BY_PERIOD.quarters || {})
-    .filter(k => !k.startsWith('2030'))  // filter junk rows
-    .sort((a,b) => {
-      const [ya,qa] = [parseInt(a),parseInt(a.slice(6))];
-      const [yb,qb] = [parseInt(b),parseInt(b.slice(6))];
-      return yb !== ya ? yb-ya : qb-qa;
-    });
-  const yKeys = Object.keys(PL_BY_PERIOD.years || {})
-    .filter(k => parseInt(k) >= 2021 && parseInt(k) <= 2026)
-    .sort((a,b) => parseInt(b)-parseInt(a));
-
-  function buildOptions(sel, defaultKey) {
-    sel.innerHTML = '';
-    const qGroup = document.createElement('optgroup');
-    qGroup.label = 'Quarters';
-    qKeys.forEach(k => {
-      const o = document.createElement('option');
-      o.value = 'q:' + k;
-      o.textContent = _plcPeriodLabel(k) + (_plcIsQuarterPartial(k) ? ' ⚠ partial' : '');
-      if (k === defaultKey) o.selected = true;
-      qGroup.appendChild(o);
-    });
-    const yGroup = document.createElement('optgroup');
-    yGroup.label = 'Full Years';
-    yKeys.forEach(k => {
-      const o = document.createElement('option');
-      o.value = 'y:' + k;
-      o.textContent = `FY ${k}` + (_plcIsYearPartial(k) ? ' ⚠ partial' : '');
-      if (k === defaultKey) o.selected = true;
-      yGroup.appendChild(o);
-    });
-    sel.appendChild(qGroup);
-    sel.appendChild(yGroup);
-  }
-
-  // Default: YoY — Period B = most recent FULL quarter; Period A = same quarter one year ago
-  // Skip partial quarters so the default comparison is apples-to-apples.
-  const mostRecent = qKeys.find(k => !_plcIsQuarterPartial(k)) || qKeys[0];
-  let yoyDefault = null;
-  if (mostRecent) {
-    const m = mostRecent.match(/^(\d{4}) Q(\d)$/);
-    if (m) {
-      const prevYrKey = `${parseInt(m[1]) - 1} Q${m[2]}`;
-      yoyDefault = qKeys.includes(prevYrKey) ? prevYrKey : (qKeys[1] || qKeys[0]);
-    }
-  }
-  buildOptions(selA, yoyDefault || qKeys[1] || qKeys[0]);
-  buildOptions(selB, mostRecent);
-
-  renderPLCompare();
+function _plcAtomExpected(atom){
+  if (atom.type==='y') return 12;
+  if (atom.type==='q') return 3;
+  return 1;
 }
 
-function _plcGetPeriodData(selValue) {
-  if (!selValue) return null;
-  if (selValue.startsWith('q:')) {
-    const key = selValue.slice(2);
-    return PL_BY_PERIOD.quarters[key] || null;
-  } else if (selValue.startsWith('y:')) {
-    const key = selValue.slice(2);
-    return PL_BY_PERIOD.years[key] || null;
+function _plcAtomData(atom){
+  if (atom.type==='y') return PL_BY_PERIOD.years[atom.key] || null;
+  if (atom.type==='q') return PL_BY_PERIOD.quarters[atom.key] || null;
+  if (atom.type==='m'){
+    const m = MONTHLY_2026[atom.month - 1];
+    if (!m) return null;
+    // Month data lacks corp/private/sponsor split, taxes, ebit — derive ebit = rev − costs.
+    return {
+      rev_total: m.rev || 0,
+      rev_corporate: 0, rev_private: 0, rev_sponsors: 0,
+      costs_total: m.costs || 0,
+      costs_by_cat: m.cats || {},
+      taxes: 0,
+      ebit: (m.rev || 0) - (m.costs || 0),
+      ebit_after_tax: (m.rev || 0) - (m.costs || 0)
+    };
   }
   return null;
 }
 
+function _plcAggregate(atoms){
+  if (!atoms || !atoms.length) return null;
+  const out = {
+    rev_total:0, rev_corporate:0, rev_private:0, rev_sponsors:0,
+    costs_total:0, costs_by_cat:{}, taxes:0, ebit:0, ebit_after_tax:0,
+    _monthsCovered:0, _monthsExpected:0, _hasMonthAtoms:false, _partialAtoms:[]
+  };
+  for (const a of atoms){
+    const d = _plcAtomData(a);
+    if (!d) continue;
+    out.rev_total     += d.rev_total     || 0;
+    out.rev_corporate += d.rev_corporate || 0;
+    out.rev_private   += d.rev_private   || 0;
+    out.rev_sponsors  += d.rev_sponsors  || 0;
+    out.costs_total   += d.costs_total   || 0;
+    out.taxes         += d.taxes         || 0;
+    out.ebit          += d.ebit          || 0;
+    out.ebit_after_tax += d.ebit_after_tax || 0;
+    for (const k in (d.costs_by_cat||{})){
+      out.costs_by_cat[k] = (out.costs_by_cat[k]||0) + d.costs_by_cat[k];
+    }
+    const cov = _plcAtomMonthsCovered(a), exp = _plcAtomExpected(a);
+    out._monthsCovered  += cov;
+    out._monthsExpected += exp;
+    if (a.type==='m') out._hasMonthAtoms = true;
+    if (cov < exp) out._partialAtoms.push(a);
+  }
+  return out;
+}
+
+function _plcAtomLabel(a, compact){
+  if (a.type==='y') return `FY ${a.year}`;
+  if (a.type==='q') return `Q${a.q} ${a.year}`;
+  if (a.type==='m') return compact ? `${PLC_MONTHS[a.month-1]} '26` : `${PLC_MONTHS[a.month-1]} 2026`;
+  return '';
+}
+function _plcSummary(side){
+  const atoms = _plcExpand(_plcState(side));
+  if (!atoms.length) return '—';
+  if (atoms.length === 1) return _plcAtomLabel(atoms[0], false);
+  if (atoms.length > 4) return `${atoms.length} periods combined`;
+  return atoms.map(a => _plcAtomLabel(a, true)).join(' + ');
+}
+
+function _plcBuildPickers(){
+  ['a','b'].forEach(side => {
+    const container = document.getElementById('plc-pick-'+side);
+    if (!container) return;
+    container.innerHTML = '';
+    const mkRow = (lbl) => {
+      const row = document.createElement('div');
+      row.className = 'plc-picker-row';
+      const l = document.createElement('span');
+      l.className = 'plc-picker-lbl';
+      l.textContent = lbl;
+      row.appendChild(l);
+      const pills = document.createElement('div');
+      pills.className = 'pills';
+      row.appendChild(pills);
+      container.appendChild(row);
+      return pills;
+    };
+    const yPills = mkRow('Year');
+    PLC_YEARS.forEach(y => {
+      const b = document.createElement('button');
+      b.className = 'pill'; b.id = `plc-${side}-y-${y}`; b.textContent = y;
+      b.onclick = () => _plcToggle(side, 'year', y);
+      yPills.appendChild(b);
+    });
+    const qPills = mkRow('Qtr');
+    [1,2,3,4].forEach(q => {
+      const b = document.createElement('button');
+      b.className = 'pill'; b.id = `plc-${side}-q-${q}`; b.textContent = 'Q'+q;
+      b.onclick = () => _plcToggle(side, 'qtr', q);
+      qPills.appendChild(b);
+    });
+    const mPills = mkRow("Mo '26");
+    for (let i=1; i<=12; i++){
+      const b = document.createElement('button');
+      b.className = 'pill';
+      if (i > (LAST_MONTH||0)) b.className += ' disabled';
+      b.id = `plc-${side}-m-${i}`;
+      b.textContent = PLC_MONTHS[i-1];
+      b.onclick = () => { if (i <= (LAST_MONTH||0)) _plcToggle(side, 'month', i); };
+      mPills.appendChild(b);
+    }
+  });
+}
+
+function _plcSyncPills(){
+  ['a','b'].forEach(side => {
+    const s = _plcState(side);
+    PLC_YEARS.forEach(y => {
+      const b = document.getElementById(`plc-${side}-y-${y}`);
+      if (b) b.classList.toggle('on', s.years.has(y));
+    });
+    [1,2,3,4].forEach(q => {
+      const b = document.getElementById(`plc-${side}-q-${q}`);
+      if (b) b.classList.toggle('on', s.qtrs.has(q));
+    });
+    for (let i=1; i<=12; i++){
+      const b = document.getElementById(`plc-${side}-m-${i}`);
+      if (b) b.classList.toggle('on', s.months.has(i));
+    }
+    const sum = document.getElementById(`plc-sum-${side}`);
+    if (sum) sum.textContent = _plcSummary(side);
+  });
+}
+
+function _plcToggle(side, kind, val){
+  const s = _plcState(side);
+  if (kind === 'year'){
+    if (s.years.has(val)) s.years.delete(val); else s.years.add(val);
+  } else if (kind === 'qtr'){
+    if (s.qtrs.has(val)) s.qtrs.delete(val); else s.qtrs.add(val);
+    if (s.qtrs.size > 0) s.months.clear();
+  } else if (kind === 'month'){
+    if (s.months.has(val)) s.months.delete(val); else s.months.add(val);
+    if (s.months.size > 0) s.qtrs.clear();
+  }
+  _plcSyncPills();
+  renderPLCompare();
+}
+
+function _plcClearSide(side){
+  const s = _plcState(side);
+  s.years.clear(); s.qtrs.clear(); s.months.clear();
+  _plcSyncPills();
+  renderPLCompare();
+}
+
+function _plcShiftPrevYear(){
+  // A ← B shifted back 1 year. Months don't shift (no historical monthly data).
+  const src = _plcB;
+  const shiftedYears = new Set();
+  for (const y of src.years){
+    const prev = String(parseInt(y) - 1);
+    if (PLC_YEARS.includes(prev)) shiftedYears.add(prev);
+  }
+  _plcA = {
+    years: shiftedYears,
+    qtrs:  new Set([...src.qtrs]),
+    months: new Set()
+  };
+  if (src.years.size === 0 && src.qtrs.size > 0) _plcA.years.add('2024');
+  _plcSyncPills();
+  renderPLCompare();
+}
+
+function initPLCompare() {
+  if (!document.getElementById('plc-pick-a')) return;
+  _plcBuildPickers();
+  _plcA.years.clear(); _plcA.qtrs.clear(); _plcA.months.clear();
+  _plcB.years.clear(); _plcB.qtrs.clear(); _plcB.months.clear();
+  // Default: B = most recent fully-complete quarter; A = same quarter previous year
+  const lm = LAST_MONTH || 0;
+  const recentQ = Math.floor(lm / 3);
+  if (recentQ >= 1){
+    _plcB.years.add('2026'); _plcB.qtrs.add(recentQ);
+    _plcA.years.add('2025'); _plcA.qtrs.add(recentQ);
+  } else {
+    _plcB.years.add('2025'); _plcB.qtrs.add(4);
+    _plcA.years.add('2024'); _plcA.qtrs.add(4);
+  }
+  _plcSyncPills();
+  renderPLCompare();
+}
+
 function renderPLCompare() {
-  const selA = document.getElementById('plc-sel-a');
-  const selB = document.getElementById('plc-sel-b');
   const thA  = document.getElementById('plc-th-a');
   const thB  = document.getElementById('plc-th-b');
   const body = document.getElementById('plc-body');
-  if (!selA || !body) return;
+  if (!body) return;
 
-  const vA = selA.value, vB = selB.value;
-  const dA = _plcGetPeriodData(vA);
-  const dB = _plcGetPeriodData(vB);
+  const atomsA = _plcExpand(_plcA);
+  const atomsB = _plcExpand(_plcB);
+  const dA = _plcAggregate(atomsA);
+  const dB = _plcAggregate(atomsB);
 
-  const labelA = selA.options[selA.selectedIndex]?.text || 'Period A';
-  const labelB = selB.options[selB.selectedIndex]?.text || 'Period B';
+  const labelA = _plcSummary('a');
+  const labelB = _plcSummary('b');
   if (thA) thA.textContent = labelA;
   if (thB) thB.textContent = labelB;
 
-  // Partial-period warning banner
+  // Partial-period warning banner (multi-atom aware)
   const warn = document.getElementById('plc-partial-warn');
   if (warn) {
-    const mA = _plcPartialMonths(vA);
-    const mB = _plcPartialMonths(vB);
-    const aPartial = vA && vA !== '' && _plcPartialMonths(vA) < (vA.startsWith('y:') ? 12 : 3);
-    const bPartial = vB && vB !== '' && _plcPartialMonths(vB) < (vB.startsWith('y:') ? 12 : 3);
-    if (aPartial || bPartial) {
-      const parts = [];
-      if (aPartial) parts.push(`${labelA.replace(' ⚠ partial','')} covers only ${mA} month${mA===1?'':'s'}`);
-      if (bPartial) parts.push(`${labelB.replace(' ⚠ partial','')} covers only ${mB} month${mB===1?'':'s'}`);
-      const mismatch = (aPartial && !bPartial) || (!aPartial && bPartial) || (aPartial && bPartial && mA !== mB);
-      warn.innerHTML = `⚠ <strong>Partial period${aPartial&&bPartial?'s':''}.</strong> ` +
-        parts.join('; ') +
-        (mismatch ? ` — the % Change is <strong>not like-for-like</strong> because the periods span different numbers of months.` : '');
+    const mA = dA ? dA._monthsCovered  : 0;
+    const eA = dA ? dA._monthsExpected : 0;
+    const mB = dB ? dB._monthsCovered  : 0;
+    const eB = dB ? dB._monthsExpected : 0;
+    const aPartial = dA && mA < eA;
+    const bPartial = dB && mB < eB;
+    const msgs = [];
+    if (aPartial) msgs.push(`Period A covers <strong>${mA}/${eA}</strong> month${eA===1?'':'s'}`);
+    if (bPartial) msgs.push(`Period B covers <strong>${mB}/${eB}</strong> month${eB===1?'':'s'}`);
+    const monthDataA = atomsA.some(a => a.type==='m');
+    const monthDataB = atomsB.some(a => a.type==='m');
+    if ((monthDataA || monthDataB)) {
+      msgs.push(`Month-level rows only include Revenue/Costs/Cats (no corporate/private/sponsor split, no taxes).`);
+    }
+    if (dA && dB && mA !== mB) {
+      msgs.push(`A = ${mA} month${mA===1?'':'s'} vs B = ${mB} month${mB===1?'':'s'} — <strong>% Change is not like-for-like</strong>.`);
+    }
+    if (msgs.length){
+      warn.innerHTML = '⚠ ' + msgs.join(' · ');
       warn.style.display = '';
     } else {
       warn.style.display = 'none';
     }
   }
 
-  if (!dA || !dB) { body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">No data</td></tr>'; return; }
+  if (!atomsA.length || !atomsB.length) {
+    body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">Select at least one period for both sides.</td></tr>';
+    return;
+  }
+  if (!dA || !dB) {
+    body.innerHTML = '<tr><td colspan="6" style="color:var(--t3);padding:20px">No data available for the selected periods.</td></tr>';
+    return;
+  }
 
   function pctChange(a, b) {
     if (!a || a === 0) return null;
