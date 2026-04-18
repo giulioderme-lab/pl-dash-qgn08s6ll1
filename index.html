@@ -122,6 +122,21 @@ svg{display:block;overflow:hidden} button{font-family:inherit}
 .pf-freshness{font-size:11px;color:var(--t3);margin-left:auto;padding-left:var(--sp3);white-space:nowrap}
 .period-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;background:var(--kbg);border:1px solid var(--b1);color:var(--t2);font-size:11px;font-weight:600;white-space:nowrap;cursor:default}
 .period-tag::before{content:"▸";color:var(--gold);font-weight:700}
+/* Category Tree — dual-handle month range slider */
+.ct-slider-wrap{margin:var(--sp2) 0 var(--sp3);padding:var(--sp2) var(--sp3);background:var(--kbg);border:1px solid var(--b1);border-radius:var(--r-md)}
+.ct-slider-labels{display:flex;justify-content:space-between;align-items:center;font-size:var(--t-xs);color:var(--t3);margin-bottom:8px}
+.ct-slider-labels .ct-edge{color:var(--t2);font-weight:600}
+.ct-slider-labels .ct-hint{font-style:italic}
+.ct-slider{position:relative;height:28px}
+.ct-slider-track{position:absolute;top:12px;left:0;right:0;height:4px;background:var(--b1);border-radius:2px}
+.ct-slider-fill{position:absolute;top:12px;height:4px;background:var(--gold);border-radius:2px;pointer-events:none}
+.ct-slider input[type=range]{position:absolute;top:0;left:0;width:100%;height:28px;background:transparent;-webkit-appearance:none;appearance:none;outline:none;pointer-events:none;margin:0}
+.ct-slider input[type=range]::-webkit-slider-runnable-track{background:transparent;height:4px;border:none}
+.ct-slider input[type=range]::-moz-range-track{background:transparent;height:4px;border:none}
+.ct-slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);cursor:grab;pointer-events:auto;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.25);margin-top:-6px}
+.ct-slider input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--gold);cursor:grab;pointer-events:auto;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.ct-slider input[type=range]:active::-webkit-slider-thumb{cursor:grabbing}
+.ct-slider input[type=range]:active::-moz-range-thumb{cursor:grabbing}
 .tab-btn{height:36px;padding:0 var(--sp4);border-radius:calc(var(--r-md) - 2px);border:none;background:transparent;color:var(--t2);font-size:var(--t-sm);font-weight:600;cursor:pointer;transition:background .2s,color .2s;white-space:nowrap;flex-shrink:0}
 .tab-btn.on{background:var(--gold);color:#fff}
 .tab-btn:hover:not(.on){background:var(--gold-d);color:var(--gold)}
@@ -526,7 +541,20 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     </div>
     <div class="card">
       <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#128202;</span> Category Tree — <span id="tree-period-label">2026 YTD</span></div>
+        <div class="card-title"><span class="icon">&#128202;</span> Category Tree by Month — <span id="tree-period-label">YTD 2026</span></div>
+      </div>
+      <div class="ct-slider-wrap">
+        <div class="ct-slider-labels">
+          <span class="ct-edge" id="ct-slider-lo">Jan 2026</span>
+          <span class="ct-hint">Drag the handles to pick a month range · pre-2026 months are quarterly ÷ 3</span>
+          <span class="ct-edge" id="ct-slider-hi">Apr 2026</span>
+        </div>
+        <div class="ct-slider">
+          <div class="ct-slider-track"></div>
+          <div class="ct-slider-fill" id="ct-slider-fill"></div>
+          <input type="range" id="ct-slider-min" min="0" max="0" value="0" step="1" oninput="_treeSliderChange('min')">
+          <input type="range" id="ct-slider-max" min="0" max="0" value="0" step="1" oninput="_treeSliderChange('max')">
+        </div>
       </div>
       <div id="tree-view">
         <div class="tbl-wrap">
@@ -2127,14 +2155,117 @@ function renderCostBreakdownDetail(cat){
   buildCostEvoDetailChart(cat, vals, 'cost-breakdown-detail-chart', false);
 }
 
+let _treeMonths = [];
+let _treeLo = 0, _treeHi = 0, _treeInit = false;
+
+function _treeMonthLabel(ym, longYr){
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [y, m] = ym.split('-');
+  return longYr ? `${MON[+m-1]} ${y}` : `${MON[+m-1]} '${String(y).slice(2)}`;
+}
+
+function _treeBuildMonthsList(){
+  _treeMonths = [];
+  const lm = LAST_MONTH || 0;
+  for (let y = 2021; y <= 2026; y++){
+    const maxM = (y === 2026) ? lm : 12;
+    for (let m = 1; m <= maxM; m++) _treeMonths.push(`${y}-${String(m).padStart(2,'0')}`);
+  }
+}
+
+function _treeMonthSlot(ym){
+  const [y, m] = ym.split('-');
+  const yi = +y, mi = +m;
+  const name = _treeMonthLabel(ym, false);
+  if (yi === 2026){
+    const md = (typeof MONTHLY_2026 !== 'undefined' && MONTHLY_2026) ? MONTHLY_2026[mi - 1] : null;
+    if (!md) return null;
+    return { name, costs: md.costs || 0, rev: md.rev || 0, cats: { ...(md.cats || {}) }, partial: false };
+  }
+  const qn = Math.ceil(mi / 3);
+  const d = (PL_BY_PERIOD && PL_BY_PERIOD.quarters) ? PL_BY_PERIOD.quarters[`${yi} Q${qn}`] : null;
+  if (!d) return null;
+  const cats = {};
+  for (const [c, v] of Object.entries(d.costs_by_cat || {})) cats[c] = (v || 0) / 3;
+  return {
+    name,
+    costs: (d.costs_total || 0) / 3,
+    rev: (d.rev_total || 0) / 3,
+    cats,
+    derived: true
+  };
+}
+
+function _treeSliderSync(){
+  const lo = _treeMonths[_treeLo], hi = _treeMonths[_treeHi];
+  const loE = document.getElementById('ct-slider-lo'); if (loE && lo) loE.textContent = _treeMonthLabel(lo, true);
+  const hiE = document.getElementById('ct-slider-hi'); if (hiE && hi) hiE.textContent = _treeMonthLabel(hi, true);
+  const fill = document.getElementById('ct-slider-fill');
+  const n = _treeMonths.length;
+  if (fill && n > 1){
+    const pLo = _treeLo / (n - 1) * 100;
+    const pHi = _treeHi / (n - 1) * 100;
+    fill.style.left = pLo + '%';
+    fill.style.right = (100 - pHi) + '%';
+  }
+  const lbl = document.getElementById('tree-period-label');
+  if (lbl && lo && hi){
+    lbl.textContent = (lo === hi) ? _treeMonthLabel(lo, true) : `${_treeMonthLabel(lo, true)} – ${_treeMonthLabel(hi, true)}`;
+  }
+}
+
+function _treeSliderInit(){
+  _treeBuildMonthsList();
+  if (!_treeMonths.length) return;
+  const first26 = _treeMonths.findIndex(k => k.startsWith('2026-'));
+  _treeLo = first26 >= 0 ? first26 : 0;
+  _treeHi = _treeMonths.length - 1;
+  const min = document.getElementById('ct-slider-min');
+  const max = document.getElementById('ct-slider-max');
+  const last = _treeMonths.length - 1;
+  if (min){ min.min = 0; min.max = last; min.value = _treeLo; }
+  if (max){ max.min = 0; max.max = last; max.value = _treeHi; }
+  _treeSliderSync();
+  _treeInit = true;
+}
+
+function _treeSliderChange(which){
+  const min = document.getElementById('ct-slider-min');
+  const max = document.getElementById('ct-slider-max');
+  if (!min || !max) return;
+  let lo = +min.value, hi = +max.value;
+  if (which === 'min' && lo > hi){ lo = hi; min.value = lo; }
+  if (which === 'max' && hi < lo){ hi = lo; max.value = hi; }
+  _treeLo = lo; _treeHi = hi;
+  _treeSliderSync();
+  buildTreeTable();
+}
+
 function buildTreeTable(){
   const tbody = document.getElementById('tree-body');
   const thead = document.getElementById('tree-thead');
-  const bd = getBreakdownData();
-  if (!bd || !tbody) return;
-  _updateBreakdownLabels(bd.label);
+  if (!tbody) return;
+  if (!_treeInit || !_treeMonths.length) _treeSliderInit();
+  if (!_treeMonths.length) return;
+  _treeSliderSync();
 
-  const { slots, catTotals, revTotal } = bd;
+  const slots = [];
+  for (let i = _treeLo; i <= _treeHi; i++){
+    const s = _treeMonthSlot(_treeMonths[i]);
+    if (s) slots.push(s);
+  }
+  if (!slots.length){
+    if (thead) thead.innerHTML = '<tr><th>Category</th><th>Total</th><th>Share of Costs</th><th>% of Rev</th></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--t3);padding:20px;text-align:center">No data in the selected month range</td></tr>';
+    return;
+  }
+
+  const catTotals = {};
+  let revTotal = 0;
+  slots.forEach(s => {
+    for (const [c, v] of Object.entries(s.cats)) catTotals[c] = (catTotals[c] || 0) + (v || 0);
+    revTotal += s.rev || 0;
+  });
   const vmTT = STATE.viewMode;
   const totalCosts = Object.values(catTotals).reduce((a,b) => a + (b > 0 ? b : 0), 0);
 
