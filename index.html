@@ -1516,32 +1516,48 @@ function _pfApplyState() {
   if (active) renderTabCharts(active.id.replace('tab-',''));
 }
 
-// Human-readable summary of the current global period selection
+// Human-readable summary of the current global period selection.
+// Always emitted in chronological order and grouped by year when multiple slices
+// of the same year are selected — e.g. "2026: Jan+Feb+Mar+Apr", "2025: Q3+Q4 + 2026: Q1".
 function _globalPeriodLabel() {
   const years  = [..._pfYears].sort();
   const qtrs   = [..._pfQtrs].sort((a,b)=>a-b);
   const months = [..._pfMonths];
   if (!years.length && !qtrs.length && !months.length) return 'All periods';
+
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const groupByYear = (pairs, fmt) => {
+    const byYear = new Map();
+    pairs.forEach(p => { if (!byYear.has(p.year)) byYear.set(p.year, []); byYear.get(p.year).push(p.label); });
+    const parts = [];
+    for (const [year, labels] of byYear) parts.push(fmt(year, labels));
+    return parts.join(' + ');
+  };
+
   if (months.length) {
-    // m3-2025 → Mar 2025
-    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return months.map(k => {
-      const m = k.match(/^m(\d+)-(\d{4})$/);
-      return m ? `${MON[+m[1]-1]} ${m[2]}` : k;
-    }).join(' + ');
+    const parsed = months
+      .map(k => { const m = k.match(/^m(\d+)-(\d{4})$/); return m ? { year:+m[2], month:+m[1], label: MON[+m[1]-1] } : null; })
+      .filter(Boolean)
+      .sort((a,b) => a.year - b.year || a.month - b.month);
+    return groupByYear(parsed, (y, names) => names.length > 1 ? `${y}: ${names.join('+')}` : `${names[0]} ${y}`);
   }
+
   if (qtrs.length && years.length) {
-    const out = [];
-    for (const y of years) for (const q of qtrs) out.push(`Q${q} ${y}`);
-    return out.length > 4 ? `${out.length} periods` : out.join(' + ');
+    const pairs = [];
+    for (const y of years) for (const q of qtrs) pairs.push({ year:+y, q, label:`Q${q}` });
+    pairs.sort((a,b) => a.year - b.year || a.q - b.q);
+    if (pairs.length > 4) return `${pairs.length} periods`;
+    return groupByYear(pairs, (y, qs) => qs.length > 1 ? `${y}: ${qs.join('+')}` : `${qs[0]} ${y}`);
   }
+
   if (qtrs.length) {
     const defYr = PF_YEAR_IDS.filter(id => /^\d{4}$/.test(id)).sort().reverse()[0] || '2025';
-    return qtrs.map(q => `Q${q} ${defYr}`).join(' + ');
+    return qtrs.length > 1 ? `${defYr}: ${qtrs.map(q=>`Q${q}`).join('+')}` : `Q${qtrs[0]} ${defYr}`;
   }
+
   if (years.length === 1) {
     const y = years[0];
-    return y === '2026' ? `YTD 2026` : `FY ${y}`;
+    return y === '2026' ? 'YTD 2026' : `FY ${y}`;
   }
   return years.map(y => y === '2026' ? 'YTD 2026' : `FY ${y}`).join(' + ');
 }
