@@ -418,6 +418,14 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
       <div class="period-pills" id="pf-months"></div>
       <span class="pf-freshness" id="pf-freshness-label"></span>
     </div>
+    <div class="pf-row">
+      <span class="period-filter-label">View</span>
+      <div class="pills" id="pf-viewmode">
+        <button class="pill on" id="vm-abs" onclick="setViewMode('abs')" title="Show absolute ruble values">₽ Absolute</button>
+        <button class="pill" id="vm-pctRev" onclick="setViewMode('pctRev')" title="Show values as % of period revenue">% Revenue</button>
+        <button class="pill" id="vm-pctCost" onclick="setViewMode('pctCost')" title="Show values as % of period costs — composition / 100%-stacked view">% Costs</button>
+      </div>
+    </div>
     <div class="pf-inactive-note">&#9432; P&amp;L Compare has its own Period A / Period B pickers — use those instead.</div>
   </div>
   <!-- #A12: mobile period filter dropdown -->
@@ -501,16 +509,6 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
         <div class="card-title"><span class="icon">&#9632;</span> Cost Breakdown — <span id="breakdown-period-label">2026 YTD</span></div>
       </div>
       <div id="stacked-view">
-        <div style="display:flex;gap:var(--sp3);flex-wrap:wrap;margin-bottom:var(--sp3)">
-          <div class="pills" role="group" aria-label="Label mode">
-            <button class="pill on" id="p-lbl-abs" onclick="setCostLabelMode('abs')" title="Show absolute rubles in-bar">&#8381; Value</button>
-            <button class="pill"    id="p-lbl-pct" onclick="setCostLabelMode('pct')" title="Show percentage of bar total in-bar">% Share</button>
-          </div>
-          <div class="pills" role="group" aria-label="Bar mode">
-            <button class="pill on" id="p-bar-stacked" onclick="setCostBarMode('stacked')" title="Absolute stacked bars">Stacked</button>
-            <button class="pill"    id="p-bar-100pct"  onclick="setCostBarMode('100pct')"  title="Every bar normalized to 100% (composition)">100% Stacked</button>
-          </div>
-        </div>
         <div class="legend" id="stack-legend"></div>
         <div class="chart-wrap" id="stack-chart"></div>
       </div>
@@ -532,19 +530,12 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128200;</span> Cost Breakdown by Year — Last 5 Years</div>
-        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
-          <div class="pills" role="group" aria-label="Cost comparison mode">
-            <button class="pill on" id="pcc-mode-abs"     onclick="setCostCompareMode('abs')"     title="Absolute rubles">&#8381; Absolute</button>
-            <button class="pill"    id="pcc-mode-pctRev"  onclick="setCostCompareMode('pctRev')"  title="Each category as % of that year's revenue">% of Revenue</button>
-            <button class="pill"    id="pcc-mode-pctCost" onclick="setCostCompareMode('pctCost')" title="Each category as % of that year's total costs (bars reach 100%)">% of Cost</button>
-          </div>
-          <div class="pills" role="group" aria-label="Cost comparison period">
-            <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
-            <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
-            <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
-            <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
-            <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
-          </div>
+        <div class="pills" role="group" aria-label="Cost comparison period">
+          <button class="pill on" id="pcc-full" onclick="setCostComparePeriod('full')">Full Year</button>
+          <button class="pill"    id="pcc-q1"   onclick="setCostComparePeriod('Q1')">Q1</button>
+          <button class="pill"    id="pcc-q2"   onclick="setCostComparePeriod('Q2')">Q2</button>
+          <button class="pill"    id="pcc-q3"   onclick="setCostComparePeriod('Q3')">Q3</button>
+          <button class="pill"    id="pcc-q4"   onclick="setCostComparePeriod('Q4')">Q4</button>
         </div>
       </div>
       <div style="font-size:var(--t-xs);color:var(--t3);margin-bottom:var(--sp2)">
@@ -656,14 +647,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128201;</span> YoY Change by Category</div>
-        <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
-          <div class="pills">
-            <button class="pill on" id="ce-mode-abs"     onclick="setCostEvoMode('abs')"     title="Absolute rubles per year">&#8381; Absolute</button>
-            <button class="pill"    id="ce-mode-pctRev"  onclick="setCostEvoMode('pctRev')"  title="Each value as a share of that year's revenue">% of Revenue</button>
-            <button class="pill"    id="ce-mode-pctCost" onclick="setCostEvoMode('pctCost')" title="Each value as a share of that year's total costs (composition)">% of Cost</button>
-          </div>
-          <button class="csv-btn" onclick="exportCSV('costevo')" aria-label="Export cost evolution data as CSV">⬇ CSV</button>
-        </div>
+        <button class="csv-btn" onclick="exportCSV('costevo')" aria-label="Export cost evolution data as CSV">⬇ CSV</button>
       </div>
       <div class="tbl-wrap">
         <table class="tbl-sticky-first">
@@ -706,12 +690,7 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
     <div class="card" style="margin-bottom:0">
       <div class="card-hdr">
         <div class="card-title"><span class="icon">&#128200;</span> P&amp;L Comparison</div>
-        <div class="pills" id="plc-mode-pills" style="margin-left:auto">
-          <button class="pill on" id="plc-mode-abs" onclick="setPLCMode('abs')" title="Absolute ₽ values with % of revenue / costs as secondary column">Abs ₽</button>
-          <button class="pill" id="plc-mode-pctRev" onclick="setPLCMode('pctRev')" title="Each line as a percentage of Total Revenue for its period">% Rev</button>
-          <button class="pill" id="plc-mode-pctCosts" onclick="setPLCMode('pctCosts')" title="Each line as a percentage of Total Costs for its period">% Costs</button>
-        </div>
-        <div style="font-size:var(--t-xs);color:var(--t3);flex-basis:100%">Default: same quarter YoY &mdash; % Change = (B &minus; A) / |A|. In % modes, Δ shown in pp (percentage points).</div>
+        <div style="font-size:var(--t-xs);color:var(--t3);flex-basis:100%">View mode controlled by the global toggle at the top. Default: same quarter YoY &mdash; % Change = (B &minus; A) / |A|. In % modes, Δ shown in pp (percentage points).</div>
       </div>
       <div id="plc-partial-warn" style="display:none;margin:0 0 var(--sp3);padding:var(--sp2) var(--sp3);background:rgba(var(--amber-rgb,255,176,32),.08);border:1px solid var(--amber);border-left:3px solid var(--amber);border-radius:6px;font-size:var(--t-xs);color:var(--t2)"></div>
       <div class="tbl-wrap">
@@ -1243,8 +1222,27 @@ const STATE = {
   supCatFilter: 'all',
   supPeriodFilter: 'ytd26',
   costEvoView: 'abs',
-  globalPeriod: 'all'
+  globalPeriod: 'all',
+  viewMode: 'abs'  // 'abs' | 'pctRev' | 'pctCost' — shared numeric representation across all tabs
 };
+
+/* Unified view-mode handler — drives Cost Breakdown, Cost Comparison, Cost Evolution, P&L Compare */
+function setViewMode(m) {
+  if (m !== 'abs' && m !== 'pctRev' && m !== 'pctCost') return;
+  STATE.viewMode = m;
+  ['abs','pctRev','pctCost'].forEach(k => {
+    const b = document.getElementById('vm-'+k);
+    if (b) b.classList.toggle('on', k === m);
+  });
+  // Re-render every view that depends on viewMode
+  try { delete _built['stack']; delete _built['cost-compare']; } catch(_){}
+  if (typeof buildStackChart === 'function') lazyBuild('stack', buildStackChart);
+  if (typeof buildTreeTable === 'function') buildTreeTable();
+  if (typeof buildCostCompareChart === 'function') buildCostCompareChart();
+  if (typeof renderCostEvoTable === 'function') renderCostEvoTable();
+  if (typeof renderCostEvoDetail === 'function' && typeof _ceSelectedCat !== 'undefined' && _ceSelectedCat) renderCostEvoDetail(_ceSelectedCat);
+  if (typeof renderPLCompare === 'function') renderPLCompare();
+}
 
 /* ── GLOBAL PERIOD FILTER ── */
 // Year IDs populated dynamically; quarter pills are generic Q1–Q4
@@ -1654,9 +1652,6 @@ let qView='chart';
 /* ══════════════════════════════════════════════
    BREAKDOWN DATA HELPER — period-aware
 ══════════════════════════════════════════════ */
-let _costLabelMode = 'abs';    // 'abs' | 'pct'     — in-bar label format
-let _costBarMode   = 'stacked';// 'stacked' | '100pct' — bar height scale
-
 function getBreakdownData() {
   const p = STATE.globalPeriod;
 
@@ -1768,23 +1763,28 @@ function buildStackChart(){
   const t2=gv('--t2'),t3=gv('--t3'),b1=gv('--b1');
   const n=slots.length;
 
-  // Bar mode — 'stacked' = absolute ₽ heights; '100pct' = normalized to bar total (each bar = 100%)
+  // Bar mode — pctCost = normalized to bar total (each bar = 100%); otherwise absolute ₽ heights
+  const vmCB = STATE.viewMode;
   const tr = (v, slot) => {
-    if (_costBarMode === '100pct') return slot.costs > 0 ? v / slot.costs * 100 : 0;
-    return v; // stacked: absolute
+    if (vmCB === 'pctCost') return slot.costs > 0 ? v / slot.costs * 100 : 0;
+    return v;
   };
   const perSlotTotal = slots.map(s => tr(s.costs, s));
-  const defaultMax = _costBarMode === '100pct' ? 100 : 1;
+  const defaultMax = vmCB === 'pctCost' ? 100 : 1;
   const maxV = Math.max(...perSlotTotal, defaultMax);
   const yS = v => iH - v/maxV*iH;
   const slotW=iW/n, bW=Math.min(slotW*0.6,60);
   const cx=i=>i*slotW+slotW/2;
-  const fmtAxisMode = v => _costBarMode === '100pct' ? v.toFixed(0) + '%' : fmtAxis(v);
-  // Label mode — independent of bar mode
+  const fmtAxisMode = v => vmCB === 'pctCost' ? v.toFixed(0) + '%' : fmtAxis(v);
+  // Label mode
   const fmtValMode = (v, slot) => {
-    if (_costLabelMode === 'pct') {
+    if (vmCB === 'pctCost') {
       const p = slot.costs > 0 ? v / slot.costs * 100 : 0;
       return p.toFixed(0) + '%';
+    }
+    if (vmCB === 'pctRev') {
+      const p = slot.rev > 0 ? v / slot.rev * 100 : 0;
+      return p.toFixed(1) + '%';
     }
     return fmtAxis(v);
   };
@@ -1833,32 +1833,9 @@ function buildStackChart(){
 }
 
 /* ══════════════════════════════════════════════
-   TREE TABLE
-══════════════════════════════════════════════ */
-function setCostLabelMode(mode) {
-  _costLabelMode = mode;
-  ['abs','pct'].forEach(m => {
-    const b = document.getElementById('p-lbl-'+m);
-    if (b) b.classList.toggle('on', mode === m);
-  });
-  buildStackChart();
-  buildTreeTable();
-}
-
-function setCostBarMode(mode) {
-  _costBarMode = mode;
-  ['stacked','100pct'].forEach(m => {
-    const b = document.getElementById('p-bar-'+m);
-    if (b) b.classList.toggle('on', mode === m);
-  });
-  buildStackChart();
-}
-
-/* ══════════════════════════════════════════════
    COST BREAKDOWN COMPARISON — last 5 years, Full Year or by Quarter
 ══════════════════════════════════════════════ */
 let _costComparePeriod = 'full'; // 'full' | 'Q1' | 'Q2' | 'Q3' | 'Q4'
-let _ccMode = 'abs';             // 'abs' | 'pctRev' | 'pctCost' — independent of main Cost Breakdown toggle
 
 function setCostComparePeriod(p) {
   _costComparePeriod = p;
@@ -1867,17 +1844,6 @@ function setCostComparePeriod(p) {
     const btn = document.getElementById(id);
     if (btn) btn.classList.toggle('on', k === p);
   });
-  buildCostCompareChart();
-}
-
-function setCostCompareMode(mode) {
-  _ccMode = mode;
-  ['abs','pctRev','pctCost'].forEach(m => {
-    const b = document.getElementById('pcc-mode-' + m);
-    if (b) b.classList.toggle('on', mode === m);
-  });
-  const hint = document.getElementById('pcc-mode-hint');
-  if (hint) hint.textContent = mode === 'abs' ? 'absolute rubles' : (mode === 'pctRev' ? '% of revenue' : '% of cost');
   buildCostCompareChart();
 }
 
@@ -1905,7 +1871,7 @@ function buildCostCompareChart() {
   const host = document.getElementById(cId);
   if (!host) return;
   const modeHint = document.getElementById('pcc-mode-hint');
-  if (modeHint) modeHint.textContent = _ccMode === 'abs' ? 'absolute rubles' : (_ccMode === 'pctRev' ? '% of revenue' : '% of cost');
+  if (modeHint) modeHint.textContent = STATE.viewMode === 'abs' ? 'absolute rubles' : (STATE.viewMode === 'pctRev' ? '% of revenue' : '% of cost');
 
   const endYear = 2026;
   const years = [endYear-4, endYear-3, endYear-2, endYear-1, endYear];
@@ -1939,20 +1905,21 @@ function buildCostCompareChart() {
   svg.appendChild(g);
   const t2 = gv('--t2'), t3 = gv('--t3'), b1 = gv('--b1'), amber = gv('--amber') || '#f0ad4e';
 
+  const vmCC = STATE.viewMode;
   const tr = (v, slot) => {
-    if (_ccMode === 'abs') return v;
-    if (_ccMode === 'pctRev')  return slot.rev   > 0 ? v / slot.rev   * 100 : 0;
-    return                          slot.costs > 0 ? v / slot.costs * 100 : 0;
+    if (vmCC === 'abs') return v;
+    if (vmCC === 'pctRev')  return slot.rev   > 0 ? v / slot.rev   * 100 : 0;
+    return                       slot.costs > 0 ? v / slot.costs * 100 : 0;
   };
   const perSlotTotal = slots.map(s => tr(s.costs, s));
-  const defaultMax = _ccMode === 'abs' ? 1 : 100;
+  const defaultMax = vmCC === 'abs' ? 1 : 100;
   const maxV = Math.max(...perSlotTotal, defaultMax);
   const yS = v => iH - v / maxV * iH;
   const n = slots.length;
   const slotW = iW / n, bW = Math.min(slotW * 0.6, 70);
   const cx = i => i * slotW + slotW / 2;
-  const fmtAxisMode = v => _ccMode === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
-  const fmtValMode = (v, slot) => _ccMode === 'abs' ? fmtAxis(v) : (tr(v, slot).toFixed(tr(v,slot)>=10?0:1) + '%');
+  const fmtAxisMode = v => vmCC === 'abs' ? fmtAxis(v) : v.toFixed(0) + '%';
+  const fmtValMode = (v, slot) => vmCC === 'abs' ? fmtAxis(v) : (tr(v, slot).toFixed(tr(v,slot)>=10?0:1) + '%');
 
   for (let i = 0; i <= 4; i++) {
     const v = maxV * i / 4, y = yS(v);
@@ -2000,18 +1967,19 @@ function buildCostCompareChart() {
   // Table — same data / categories × years + 5-year total, sorted by total desc
   const tbl = document.getElementById('cost-compare-table');
   if (tbl) {
+    const vmCCt = STATE.viewMode;
     const fmtTblCell = (v, slot) => {
       if (v <= 0) return '—';
-      if (_ccMode === 'abs') return fmtM(v);
-      const den = _ccMode === 'pctRev' ? slot.rev : slot.costs;
+      if (vmCCt === 'abs') return fmtM(v);
+      const den = vmCCt === 'pctRev' ? slot.rev : slot.costs;
       return den > 0 ? (v / den * 100).toFixed(1) + '%' : '—';
     };
     const fmtTotCell = (sum, denSum) => {
       if (sum <= 0) return '—';
-      if (_ccMode === 'abs') return fmtM(sum);
+      if (vmCCt === 'abs') return fmtM(sum);
       return denSum > 0 ? (sum / denSum * 100).toFixed(1) + '%' : '—';
     };
-    const denSum = slots.reduce((s, sl) => s + (_ccMode === 'pctRev' ? sl.rev : sl.costs), 0);
+    const denSum = slots.reduce((s, sl) => s + (vmCCt === 'pctRev' ? sl.rev : sl.costs), 0);
     const catWithTotals = allCats.map(c => ({ c, total: slots.reduce((s, sl) => s + (sl.cats[c] || 0), 0) }))
                                  .sort((a,b) => b.total - a.total);
     const colHdr = slots.map(sl => `<th>${sl.name}</th>`).join('');
@@ -2085,15 +2053,19 @@ function buildTreeTable(){
   _updateBreakdownLabels(bd.label);
 
   const { slots, catTotals, revTotal } = bd;
-  const asPct = _costLabelMode === 'pct';
+  const vmTT = STATE.viewMode;
   const totalCosts = Object.values(catTotals).reduce((a,b) => a + (b > 0 ? b : 0), 0);
 
-  const slotCell = (v, s) => asPct
-    ? (s.costs > 0 ? (v / s.costs * 100).toFixed(1) + '%' : '—')
-    : fmtM(v);
-  const totalCellFor = (total) => asPct
-    ? (totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) + '%' : '—')
-    : fmtM(total);
+  const slotCell = (v, s) => {
+    if (vmTT === 'pctCost') return s.costs > 0 ? (v / s.costs * 100).toFixed(1) + '%' : '—';
+    if (vmTT === 'pctRev')  return s.rev   > 0 ? (v / s.rev   * 100).toFixed(1) + '%' : '—';
+    return fmtM(v);
+  };
+  const totalCellFor = (total) => {
+    if (vmTT === 'pctCost') return totalCosts > 0 ? (total / totalCosts * 100).toFixed(1) + '%' : '—';
+    if (vmTT === 'pctRev')  return revTotal   > 0 ? (total / revTotal   * 100).toFixed(1) + '%' : '—';
+    return fmtM(total);
+  };
 
   const colHeaders = slots.map(s => `<th>${s.name}</th>`).join('');
   if (thead){
@@ -2809,7 +2781,6 @@ const CE_COLORS = {
   'IT':'#5b8ab7','Beverages':'#9fc5b2','General expenses':'#989693','Aprons':'#b3a58f'
 };
 let costEvoView = STATE.costEvoView;
-let _ceMode = 'abs';  // 'abs' | 'pctRev' | 'pctCost'
 
 function _ceYearCostTotal(yr) {
   const y = PL_BY_PERIOD && PL_BY_PERIOD.years && PL_BY_PERIOD.years[yr];
@@ -2820,32 +2791,24 @@ function _ceYearCostTotal(yr) {
   return s;
 }
 
-function setCostEvoMode(mode) {
-  _ceMode = mode;
-  ['abs','pctRev','pctCost'].forEach(m => {
-    const b = document.getElementById('ce-mode-' + m);
-    if (b) b.classList.toggle('on', m === mode);
-  });
-  const tail1 = document.getElementById('ce-th-tail1');
-  if (tail1) tail1.textContent = mode === 'abs' ? '% Rev 2025' : (mode === 'pctRev' ? '% Rev 2025' : '% Cost 2025');
-  renderCostEvoTable();
-}
-
 let _ceSelectedCat = null;
 
 function renderCostEvoTable() {
   const tbody = document.getElementById('costevo-body');
   if (!tbody) return;
+  const vmCE = STATE.viewMode;
+  const tail1 = document.getElementById('ce-th-tail1');
+  if (tail1) tail1.textContent = vmCE === 'pctCost' ? '% Cost 2025' : '% Rev 2025';
   const yrs = ['2021','2022','2023','2024','2025','2026'];
   const denom = {};
   yrs.forEach(yr => {
-    denom[yr] = _ceMode === 'pctRev' ? (REV_TOTALS[yr] || 0)
-              : _ceMode === 'pctCost' ? _ceYearCostTotal(yr)
+    denom[yr] = vmCE === 'pctRev' ? (REV_TOTALS[yr] || 0)
+              : vmCE === 'pctCost' ? _ceYearCostTotal(yr)
               : 0;
   });
   const fmtCell = (v, yr) => {
     if (!(v > 0)) return '—';
-    if (_ceMode === 'abs') return fmtM(v);
+    if (vmCE === 'abs') return fmtM(v);
     const d = denom[yr];
     return d > 0 ? (v / d * 100).toFixed(1) + '%' : '—';
   };
@@ -2859,7 +2822,7 @@ function renderCostEvoTable() {
       return `<td class="mono ${v>0?'':'dim'}">${fmtCell(v, yr)}</td>`;
     }).join('');
     const v25 = d['2025']?.t||0, v24 = d['2024']?.t||0;
-    const tailDenom = _ceMode === 'pctCost' ? _ceYearCostTotal('2025') : (REV_TOTALS['2025']||0);
+    const tailDenom = vmCE === 'pctCost' ? _ceYearCostTotal('2025') : (REV_TOTALS['2025']||0);
     const tailPct = (v25>0 && tailDenom>0) ? (v25/tailDenom*100).toFixed(1)+'%' : '—';
     const delta = (v24>0 && v25>0) ? (v25-v24) : null;
     const yoyPct = (v24>0 && v25>0) ? ((v25-v24)/v24*100) : null;
@@ -2894,7 +2857,8 @@ function renderCostEvoDetail(cat){
   if (!host) return;
   const yrs = ['2022','2023','2024','2025','2026'];
   const d = CAT_EVO[cat]; if (!d) { host.innerHTML=''; return; }
-  const modeLabel = _ceMode === 'abs' ? 'Absolute (₽)' : (_ceMode === 'pctRev' ? '% of Revenue' : '% of Cost');
+  const vmCED = STATE.viewMode;
+  const modeLabel = vmCED === 'abs' ? 'Absolute (₽)' : (vmCED === 'pctRev' ? '% of Revenue' : '% of Cost');
   host.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp2)">
     <div style="font-size:var(--t-md);color:var(--t1);font-weight:600"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${CE_COLORS[cat]||'#989693'};margin-right:6px;vertical-align:middle"></span>${cat} — ${modeLabel}</div>
     <button class="pill" onclick="toggleCostEvoDetail(${JSON.stringify(cat)})" style="background:transparent">&times; Close</button>
@@ -2903,8 +2867,8 @@ function renderCostEvoDetail(cat){
   const vals = yrs.map(yr => {
     const v = d[yr]?.t || 0;
     let plotted = v;
-    if (_ceMode === 'pctRev')  { const den = REV_TOTALS[yr] || 0; plotted = den > 0 ? v / den * 100 : 0; }
-    if (_ceMode === 'pctCost') { const den = _ceYearCostTotal(yr); plotted = den > 0 ? v / den * 100 : 0; }
+    if (vmCED === 'pctRev')  { const den = REV_TOTALS[yr] || 0; plotted = den > 0 ? v / den * 100 : 0; }
+    if (vmCED === 'pctCost') { const den = _ceYearCostTotal(yr); plotted = den > 0 ? v / den * 100 : 0; }
     return { year: yr, raw: v, plotted };
   });
   buildCostEvoDetailChart(cat, vals);
@@ -2912,7 +2876,7 @@ function renderCostEvoDetail(cat){
 
 function buildCostEvoDetailChart(cat, vals, cId, isPct){
   cId = cId || 'costevo-detail-chart';
-  if (isPct === undefined) isPct = _ceMode !== 'abs';
+  if (isPct === undefined) isPct = STATE.viewMode !== 'abs';
   const host = document.getElementById(cId);
   if (!host) return;
   const cW = gW(cId), PL = 60, PR = 20, PT = 16, PB = 28, H = 240;
@@ -2945,7 +2909,7 @@ function buildCostEvoDetailChart(cat, vals, cId, isPct){
     const zone = el('rect', { x: p.x - 16, y: 0, width: 32, height: iH, fill: 'transparent' });
     addHover(zone, () => `<div class="tt-title">${cat} · ${p.year}${p.year==='2026'?' (partial)':''}</div>
       <div class="tt-row"><span>Amount</span><span class="tt-val">${fmtM(p.raw)}</span></div>
-      ${isPct ? `<div class="tt-row"><span>${_ceMode==='pctRev'?'% of Rev':'% of Cost'}</span><span class="tt-val">${p.plotted.toFixed(2)}%</span></div>` : ''}`);
+      ${isPct ? `<div class="tt-row"><span>${STATE.viewMode==='pctRev'?'% of Rev':'% of Cost'}</span><span class="tt-val">${p.plotted.toFixed(2)}%</span></div>` : ''}`);
     g.appendChild(zone);
   });
   host.innerHTML = '';
@@ -3218,17 +3182,6 @@ function _plcShiftPrevYear(){
   renderPLCompare();
 }
 
-let _plcMode = 'abs'; // 'abs' | 'pctRev' | 'pctCosts'
-function setPLCMode(mode){
-  if (mode !== 'abs' && mode !== 'pctRev' && mode !== 'pctCosts') return;
-  _plcMode = mode;
-  ['abs','pctRev','pctCosts'].forEach(m => {
-    const b = document.getElementById('plc-mode-'+m);
-    if (b) b.classList.toggle('on', m === mode);
-  });
-  renderPLCompare();
-}
-
 function initPLCompare() {
   if (!document.getElementById('plc-pick-a')) return;
   _plcBuildPickers();
@@ -3261,7 +3214,7 @@ function renderPLCompare() {
 
   const labelA = _plcSummary('a');
   const labelB = _plcSummary('b');
-  const mode = _plcMode || 'abs';
+  const mode = STATE.viewMode;
   const isAbs = mode === 'abs';
   const colspan = isAbs ? 6 : 4;
 
