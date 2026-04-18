@@ -626,15 +626,15 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
           <tbody id="clients-body"></tbody>
         </table>
       </div>
-    </div>
-    <!-- Per-client 5-year trend (shown when a client row is selected) -->
-    <div class="card" id="client-detail-card" style="display:none;margin-bottom:0">
-      <div class="card-hdr">
-        <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
-        <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
+      <!-- Per-client 5-year trend (shown when a client row is selected) -->
+      <div id="client-detail-card" style="display:none;margin-top:var(--sp4);padding-top:var(--sp4);border-top:1px solid var(--b2)">
+        <div class="card-hdr" style="margin-bottom:var(--sp3)">
+          <div class="card-title"><span class="icon">&#128200;</span> <span id="client-detail-title">Client Trend</span></div>
+          <button class="pill" onclick="closeClientDetail()" title="Close" style="background:transparent">&times; Close</button>
+        </div>
+        <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
+        <div class="chart-wrap" id="client-trend-chart"></div>
       </div>
-      <div id="client-detail-stats" style="display:flex;gap:var(--sp5);flex-wrap:wrap;margin-bottom:var(--sp3);font-size:var(--t-sm);color:var(--t2)"></div>
-      <div class="chart-wrap" id="client-trend-chart"></div>
     </div>
   </div>
 
