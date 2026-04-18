@@ -1137,11 +1137,29 @@ function buildAnnualStackChart(){
     const ttTitle = annualMode==='full'
       ? d.year
       : d.year + (periodLbl ? ' · ' + periodLbl : '') + (d.partial ? ' (partial)' : '');
-    const html=()=>`<div class="tt-title">${ttTitle}</div>
-      <div class="tt-row"><span style="color:${gold}">Revenue</span><span class="tt-val">${fmtM(d.rev)}</span></div>
-      <div class="tt-row"><span style="color:${blue}">Costs</span><span class="tt-val">${fmtM(d.costs)}</span></div>
-      <div class="tt-row"><span style="color:${d.profit>=0?pos:neg}">Net Profit</span><span class="tt-val">${fmtM(d.profit)}</span></div>
-      <div class="tt-row"><span>Margin</span><span class="tt-val">${margin}</span></div>`;
+    const prev = (i > 0 && data[i-1].year === d.year - 1) ? data[i-1] : null;
+    const yoyCell = (cur, p, invert) => {
+      if (p === null || p === undefined || p === 0) return '';
+      const pct = (cur - p) / Math.abs(p) * 100;
+      const good = invert ? pct < 0 : pct > 0;
+      const c = Math.abs(pct) < 0.5 ? t3 : (good ? pos : neg);
+      const arrow = pct >= 0 ? '↑' : '↓';
+      return `<span style="color:${c};font-size:11px;margin-left:6px">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+    };
+    const ppCell = (curM, prevM) => {
+      if (prevM === null || prevM === undefined) return '';
+      const dd = curM - prevM;
+      const c = Math.abs(dd) < 0.1 ? t3 : (dd > 0 ? pos : neg);
+      const arrow = dd >= 0 ? '↑' : '↓';
+      return `<span style="color:${c};font-size:11px;margin-left:6px">${arrow}${Math.abs(dd).toFixed(1)}pp</span>`;
+    };
+    const curM = d.rev > 0 ? d.profit / d.rev * 100 : null;
+    const prevM = prev && prev.rev > 0 ? prev.profit / prev.rev * 100 : null;
+    const html=()=>`<div class="tt-title">${ttTitle}${prev?` <span style="font-size:10px;color:${t3};font-weight:400">vs ${prev.year}</span>`:''}</div>
+      <div class="tt-row"><span style="color:${gold}">Revenue</span><span class="tt-val">${fmtM(d.rev)}${prev?yoyCell(d.rev, prev.rev, false):''}</span></div>
+      <div class="tt-row"><span style="color:${blue}">Costs</span><span class="tt-val">${fmtM(d.costs)}${prev?yoyCell(d.costs, prev.costs, true):''}</span></div>
+      <div class="tt-row"><span style="color:${d.profit>=0?pos:neg}">Net Profit</span><span class="tt-val">${fmtM(d.profit)}${prev?yoyCell(d.profit, prev.profit, false):''}</span></div>
+      <div class="tt-row"><span>Margin</span><span class="tt-val">${margin}${ppCell(curM, prevM)}</span></div>`;
     addHover(zone,html);
     g.appendChild(zone);
   });
