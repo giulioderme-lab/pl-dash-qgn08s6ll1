@@ -1275,7 +1275,16 @@ function buildYoYLineChart(elId, curSeries, priorSeries){
   const iW = cW - PL - PR, iH = H - PT - PB;
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const allVals = [...curSeries, ...priorSeries].filter(v => v != null);
-  const maxV = Math.max(...allVals, 0.0001);
+  const dataMax = Math.max(...allVals, 0.0001);
+  // Round up to a "nice" number with ~10% headroom so top points aren't clipped.
+  const _niceCeil = v => {
+    if (v <= 0) return 1;
+    const exp = Math.pow(10, Math.floor(Math.log10(v)));
+    const steps = [1, 2, 2.5, 5, 10];
+    for (const s of steps){ const c = s * exp; if (c >= v) return c; }
+    return 10 * exp;
+  };
+  const maxV = _niceCeil(dataMax * 1.1);
   const xS = i => i / 11 * iW;
   const yS = v => iH - (v / maxV) * iH;
   const svg = el('svg', {viewBox:'0 0 '+cW+' '+H, xmlns:NS});
@@ -1351,7 +1360,9 @@ function buildOverviewCostByMonth(){
   const cats = Object.keys(months.reduce((acc,m) => { Object.keys(m.cats||{}).forEach(k => acc[k]=1); return acc; }, {}));
   const cW = gW(cId), PL = 48, PR = 14, PT = 12, PB = 28, H = 240;
   const iW = cW - PL - PR, iH = H - PT - PB;
-  const maxV = Math.max(...months.map(m => m.costs || 0), 1);
+  const _nice = v => { if (v<=0) return 1; const e=Math.pow(10,Math.floor(Math.log10(v))); for (const s of [1,2,2.5,5,10]){ if (s*e >= v) return s*e; } return 10*e; };
+  const dataMax = Math.max(...months.map(m => m.costs || 0), 1);
+  const maxV = _nice(dataMax * 1.1);
   const slotW = iW / months.length, bW = Math.min(slotW * 0.7, 40);
   const xS = i => i * slotW + slotW/2;
   const yS = v => iH - (v/maxV) * iH;
