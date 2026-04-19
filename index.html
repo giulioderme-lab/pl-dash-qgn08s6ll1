@@ -1302,9 +1302,12 @@ function buildLineSpark(elId, values, opts){
 }
 
 /* Twin-line year-over-year chart for Row 3. */
-function buildYoYLineChart(elId, curSeries, priorSeries){
+function buildYoYLineChart(elId, curSeries, priorSeries, opts){
   const host = document.getElementById(elId);
   if (!host) return;
+  const o = opts || {};
+  const curMeta = o.curMeta || [];     // per-month tooltip html for current-year dots
+  const priorMeta = o.priorMeta || []; // per-month tooltip html for prior-year dots
   const cW = gW(elId), PL = 48, PR = 16, PT = 16, PB = 28, H = 240;
   const iW = cW - PL - PR, iH = H - PT - PB;
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1333,7 +1336,7 @@ function buildYoYLineChart(elId, curSeries, priorSeries){
   for (let i=0;i<12;i++){
     g.appendChild(tx(MON[i],{x:xS(i),y:iH+16,'text-anchor':'middle',fill:t3,'font-size':10,'font-family':'IBM Plex Mono,monospace'}));
   }
-  const _line = (series, stroke, dash) => {
+  const _line = (series, stroke, dash, meta) => {
     const pts = series.map((v,i) => v == null ? null : xS(i)+','+yS(v)).filter(Boolean);
     if (!pts.length) return;
     const attrs = {points: pts.join(' '), fill:'none', stroke, 'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'};
@@ -1341,11 +1344,21 @@ function buildYoYLineChart(elId, curSeries, priorSeries){
     g.appendChild(el('polyline', attrs));
     series.forEach((v,i) => {
       if (v == null) return;
-      g.appendChild(el('circle',{cx:xS(i),cy:yS(v),r:3,fill:stroke}));
+      const c = el('circle',{cx:xS(i),cy:yS(v),r:4,fill:stroke,'stroke':'var(--card)','stroke-width':1.5});
+      const html = meta && meta[i];
+      if (html){
+        c.style.cursor = 'pointer';
+        c.addEventListener('mousemove', e => {
+          c.setAttribute('r','6');
+          showTT(html, e);
+        });
+        c.addEventListener('mouseleave', () => { c.setAttribute('r','4'); hideTT(); });
+      }
+      g.appendChild(c);
     });
   };
-  _line(priorSeries, t3, '4,3');
-  _line(curSeries, gold);
+  _line(priorSeries, t3, '4,3', priorMeta);
+  _line(curSeries, gold, null, curMeta);
   host.innerHTML = '';
   host.appendChild(svg);
 }
@@ -1540,7 +1553,57 @@ function renderOverviewScorecard(){
     const qd = qs[prevYr+' Q'+q];
     return qd ? _ovMonthRev(prevYr, i+1) : null;
   });
-  buildYoYLineChart('ov-trend-rev', curRevSeries, priorRevSeries);
+  // Per-month tooltip snapshots (rev/costs/profit + YoY) for both series.
+  const _monthSnap = (year, month) => {
+    let rev = 0, costs = 0, have = false;
+    if (year === 2026){
+      if (month <= lm && MONTHLY_2026[month-1]){
+        const r = MONTHLY_2026[month-1];
+        rev = r.rev || 0; costs = r.costs || 0; have = true;
+      }
+    } else {
+      const q = Math.ceil(month/3);
+      const qd = (PL_BY_PERIOD && PL_BY_PERIOD.quarters) ? PL_BY_PERIOD.quarters[year+' Q'+q] : null;
+      if (qd){
+        rev = _ovMonthRev(year, month);
+        costs = ((qd.costs_total || 0) + (qd.taxes || 0)) / 3;
+        have = true;
+      }
+    }
+    if (!have) return null;
+    return { rev, costs, profit: rev - costs, margin: rev > 0 ? (rev - costs) / rev * 100 : null };
+  };
+  const _ttGold = gv('--gold'), _ttBlue = gv('--blue'), _ttPos = gv('--pos'), _ttNeg = gv('--neg'), _ttDim = gv('--t3');
+  const _yoyCell = (cur, prev, invert) => {
+    if (prev == null || prev === 0) return '';
+    const pct = (cur - prev) / Math.abs(prev) * 100;
+    const good = invert ? pct < 0 : pct > 0;
+    const c = Math.abs(pct) < 0.5 ? _ttDim : (good ? _ttPos : _ttNeg);
+    const arrow = pct >= 0 ? '↑' : '↓';
+    return `<span style="color:${c};font-size:11px;margin-left:6px">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+  };
+  const _ppCell = (curM, prevM) => {
+    if (curM == null || prevM == null) return '';
+    const dd = curM - prevM;
+    const c = Math.abs(dd) < 0.1 ? _ttDim : (dd > 0 ? _ttPos : _ttNeg);
+    const arrow = dd >= 0 ? '↑' : '↓';
+    return `<span style="color:${c};font-size:11px;margin-left:6px">${arrow}${Math.abs(dd).toFixed(1)}pp</span>`;
+  };
+  const _mkTT = (year, i) => {
+    const cur = _monthSnap(year, i+1);
+    if (!cur) return null;
+    const prev = _monthSnap(year-1, i+1);
+    const mName = MON[i];
+    const mgTxt = cur.margin == null ? '—' : cur.margin.toFixed(1) + '%';
+    return `<div class="tt-title">${mName} ${year}${prev?` <span style="font-size:10px;color:${_ttDim};font-weight:400">vs ${year-1}</span>`:''}</div>
+      <div class="tt-row"><span style="color:${_ttGold}">Revenue</span><span class="tt-val">${fmtM(cur.rev)}${prev?_yoyCell(cur.rev, prev.rev, false):''}</span></div>
+      <div class="tt-row"><span style="color:${_ttBlue}">Costs</span><span class="tt-val">${fmtM(cur.costs)}${prev?_yoyCell(cur.costs, prev.costs, true):''}</span></div>
+      <div class="tt-row"><span style="color:${cur.profit>=0?_ttPos:_ttNeg}">Net Profit</span><span class="tt-val">${fmtM(cur.profit)}${prev?_yoyCell(cur.profit, prev.profit, false):''}</span></div>
+      <div class="tt-row"><span>Margin</span><span class="tt-val">${mgTxt}${prev?_ppCell(cur.margin, prev.margin):''}</span></div>`;
+  };
+  const curMeta = Array.from({length:12}, (_,i) => _mkTT(curYr, i));
+  const priorMeta = Array.from({length:12}, (_,i) => _mkTT(prevYr, i));
+  buildYoYLineChart('ov-trend-rev', curRevSeries, priorRevSeries, { curMeta, priorMeta });
   buildOverviewCostByMonth();
 
   // --- Row 4: leaderboards
