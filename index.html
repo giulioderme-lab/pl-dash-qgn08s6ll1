@@ -975,13 +975,37 @@ function buildFullYearInsights(){
     items.push(`Revenue has grown ${streak} consecutive years (through ${lastComplete.year}).`);
   }
 
-  // 2026 YTD run rate (when partial)
+  // 2026 YTD with seasonality-adjusted projection (not naive /12×n — this business is H2-heavy)
   const ytd = rows.find(r => r.partial);
   if (ytd && LAST_MONTH > 0){
-    const annualized = ytd.rev / LAST_MONTH * 12;
-    const vsLast = lastComplete && lastComplete.rev ? (annualized - lastComplete.rev)/lastComplete.rev*100 : null;
-    const paceTag = vsLast!=null ? ` (${vsLast>=0?'+':''}${vsLast.toFixed(0)}% vs FY ${lastComplete.year})` : '';
-    items.push(`${ytd.year} YTD: ${fmtM(ytd.rev)} through ${LAST_MONTH} month${LAST_MONTH===1?'':'s'} — annualized pace ≈ ${fmtM(annualized)}${paceTag}.`);
+    const prevYr = ytd.year - 1;
+    const q = (PL_BY_PERIOD && PL_BY_PERIOD.quarters) || {};
+    const yrs = (PL_BY_PERIOD && PL_BY_PERIOD.years) || {};
+    const fyPrev = yrs[String(prevYr)];
+    const fullQ = Math.floor(LAST_MONTH / 3);
+    const partialMos = LAST_MONTH % 3;
+    let ytdPrevRev = 0;
+    let havePrior = !!(fyPrev && fyPrev.rev_total);
+    for (let qi = 1; qi <= fullQ && havePrior; qi++){
+      const qd = q[`${prevYr} Q${qi}`];
+      if (!qd || !qd.rev_total){ havePrior = false; break; }
+      ytdPrevRev += qd.rev_total;
+    }
+    if (havePrior && partialMos > 0){
+      const nextQ = q[`${prevYr} Q${fullQ+1}`];
+      if (!nextQ || !nextQ.rev_total) havePrior = false;
+      else ytdPrevRev += nextQ.rev_total * partialMos / 3;
+    }
+    const sign = v => (v==null ? '—' : (v>=0?'+':'') + v.toFixed(1));
+    if (havePrior && ytdPrevRev > 0 && fyPrev.rev_total > 0){
+      const seasonalFactor = ytdPrevRev / fyPrev.rev_total;
+      const projected = ytd.rev / seasonalFactor;
+      const ytdYoY = (ytd.rev - ytdPrevRev) / ytdPrevRev * 100;
+      const vsLast = (projected - fyPrev.rev_total) / fyPrev.rev_total * 100;
+      items.push(`${ytd.year} YTD: ${fmtM(ytd.rev)} through ${LAST_MONTH} month${LAST_MONTH===1?'':'s'} · ${sign(ytdYoY)}% vs same period ${prevYr}. Seasonally-adjusted FY projection ≈ ${fmtM(projected)} (${sign(vsLast)}% vs FY ${prevYr}).`);
+    } else {
+      items.push(`${ytd.year} YTD: ${fmtM(ytd.rev)} through ${LAST_MONTH} month${LAST_MONTH===1?'':'s'}. FY projection unavailable (no prior-year comparable).`);
+    }
   }
 
   return items;
