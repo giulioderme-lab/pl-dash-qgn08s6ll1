@@ -1207,10 +1207,46 @@ function renderInsight(containerId){
    OVERVIEW SCORECARD (Package A)
 ══════════════════════════════════════════════ */
 
+/* Revenue-shape from TOP_CLIENTS for a given year — returns array of 12 weights.
+   Used to split quarterly totals into proportional monthly values when no
+   month-level data is embedded (pre-2026). Falls back to equal thirds. */
+const _ovShapeCache = {};
+function _ovYearRevShape(year){
+  if (_ovShapeCache[year]) return _ovShapeCache[year];
+  const shape = Array(12).fill(0);
+  const ys = String(year);
+  (TOP_CLIENTS || []).forEach(c => {
+    const y = c.years && c.years[ys];
+    if (!y || !y.m) return;
+    for (let m = 1; m <= 12; m++) shape[m-1] += (y.m[String(m)] || 0);
+  });
+  // If a quarter has no data, default to flat 1/3 each
+  for (let q = 0; q < 4; q++){
+    const qSum = shape[q*3] + shape[q*3+1] + shape[q*3+2];
+    if (qSum <= 0) { shape[q*3] = shape[q*3+1] = shape[q*3+2] = 1; }
+  }
+  return (_ovShapeCache[year] = shape);
+}
+
+/* Split a quarter's total revenue across its 3 months using TOP_CLIENTS shape. */
+function _ovMonthRev(year, month){
+  if (year === 2026){
+    const row = MONTHLY_2026 && MONTHLY_2026[month-1];
+    return row ? (row.rev || 0) : 0;
+  }
+  const q = Math.ceil(month/3);
+  const qd = PL_BY_PERIOD && PL_BY_PERIOD.quarters && PL_BY_PERIOD.quarters[year+' Q'+q];
+  if (!qd) return 0;
+  const shape = _ovYearRevShape(year);
+  const qSum = shape[(q-1)*3] + shape[(q-1)*3+1] + shape[(q-1)*3+2];
+  const w = shape[month-1];
+  return qSum > 0 ? (qd.rev_total || 0) * w / qSum : (qd.rev_total || 0) / 3;
+}
+
 /* Return the last `n` monthly values of `metric` ending at (endY, endM).
-   Metric: 'rev' | 'costs' | 'profit' | 'margin'. Months before 2026 use
-   the `PL_BY_PERIOD.quarters` totals divided by 3 as a proxy (same
-   convention used elsewhere in this file). */
+   Metric: 'rev' | 'costs' | 'profit' | 'margin'. Pre-2026 months use
+   TOP_CLIENTS-weighted splits for revenue (so Dec ≠ Nov ≠ Oct) and a
+   flat 1/3 split for costs (no client-level cost data). */
 function _ovMonthSeries(metric, endY, endM, n){
   const out = [];
   let y = endY, m = endM;
@@ -1220,12 +1256,10 @@ function _ovMonthSeries(metric, endY, endM, n){
       const row = MONTHLY_2026[m-1];
       if (row){ rev = row.rev || 0; costs = row.costs || 0; }
     } else {
+      rev = _ovMonthRev(y, m);
       const q = Math.ceil(m/3);
       const qd = PL_BY_PERIOD && PL_BY_PERIOD.quarters && PL_BY_PERIOD.quarters[y+' Q'+q];
-      if (qd){
-        rev = (qd.rev_total || 0) / 3;
-        costs = ((qd.costs_total || 0) + (qd.taxes || 0)) / 3;
-      }
+      if (qd) costs = ((qd.costs_total || 0) + (qd.taxes || 0)) / 3;
     }
     let v = 0;
     if (metric === 'rev') v = rev;
@@ -1504,7 +1538,7 @@ function renderOverviewScorecard(){
   const priorRevSeries = Array.from({length:12}, (_,i) => {
     const q = Math.ceil((i+1)/3);
     const qd = qs[prevYr+' Q'+q];
-    return qd ? (qd.rev_total || 0) / 3 : null;
+    return qd ? _ovMonthRev(prevYr, i+1) : null;
   });
   buildYoYLineChart('ov-trend-rev', curRevSeries, priorRevSeries);
   buildOverviewCostByMonth();
