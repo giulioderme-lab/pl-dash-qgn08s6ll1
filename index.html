@@ -2744,6 +2744,49 @@ async function generateReport(){
     return target;
   };
 
+  // Descend into a block if its height is more than half a page — try to split at its own children
+  // (e.g., a .card whose body has a chart + table + insights). This keeps logical sub-blocks atomic.
+  const _pageUsableH = usableH - 4; // accounts for the ~4mm header strip height
+  const _collectAtomicBlocks = (root, targetMaxHmm) => {
+    const out = [];
+    const visit = (el) => {
+      const s = getComputedStyle(el);
+      if (s.display === 'none' || el.offsetWidth === 0 || el.offsetHeight === 0) return;
+      // Estimate rendered height in mm using the panel's current pixel width as a reference.
+      const rectH = el.getBoundingClientRect().height;
+      const refPx = panel.getBoundingClientRect().width || el.getBoundingClientRect().width || 1;
+      const mmPerCssPx = usableW / refPx;
+      const estHmm = rectH * mmPerCssPx;
+      if (estHmm <= targetMaxHmm || !el.children || !el.children.length){
+        out.push(el);
+        return;
+      }
+      // Too tall — descend into children (skip inline/text-only wrappers)
+      const kids = Array.from(el.children).filter(c => c.nodeType === 1);
+      if (kids.length === 0){ out.push(el); return; }
+      for (const c of kids) visit(c);
+    };
+    Array.from(root.children).forEach(visit);
+    return out;
+  };
+
+  const _addHeaderStrip = (title) => {
+    pdf.setFillColor(bg);
+    pdf.rect(0, 0, pageW, pageH, 'F');
+    pdf.setTextColor(gold);
+    pdf.setFont('helvetica','bold');
+    pdf.setFontSize(10);
+    pdf.text(title.toUpperCase(), margin, margin + 2);
+    pdf.setTextColor(t2);
+    pdf.setFont('helvetica','normal');
+    const meta = (typeof _globalPeriodLabel === 'function' ? _globalPeriodLabel() : '') + ' · ' + _viewModeLabel();
+    pdf.text(meta, pageW - margin, margin + 2, { align: 'right' });
+  };
+
+  const contentTop = margin + 6;
+  const contentBot = pageH - margin;
+  const usableBlockH = contentBot - contentTop;
+
   for (const t of REPORT_TABS){
     showTab(t.id);
     await raf();
@@ -2751,61 +2794,83 @@ async function generateReport(){
 
     const panel = document.getElementById('panel-' + t.id);
     if (!panel) continue;
+
     try{
-      const canvas = await html2canvas(panel, { scale: 2, useCORS: true, logging: false, backgroundColor: bg });
-      const imgW = canvas.width;
-      const mmPerPx = usableW / imgW;
-      const pageSlicePx = Math.floor(usableH / mmPerPx);
-      const maxBackoff = Math.floor(pageSlicePx * 0.35); // up to 35% backoff to land on a gap
-      const srcCtx = canvas.getContext('2d');
-      let pixelData = null;
-      try { pixelData = srcCtx.getImageData(0, 0, canvas.width, canvas.height).data; }
-      catch(e){ /* tainted canvas — fall back to blind slicing */ }
+      const blocks = _collectAtomicBlocks(panel, usableBlockH);
+      if (!blocks.length){
+        pdf.addPage(); _addHeaderStrip(t.title);
+        pdf.setTextColor(t2); pdf.setFontSize(12);
+        pdf.text('(empty section)', margin, contentTop + 4);
+        continue;
+      }
 
-      let srcY = 0;
-      while (srcY < canvas.height){
-        pdf.addPage();
-        pdf.setFillColor(bg);
-        pdf.rect(0, 0, pageW, pageH, 'F');
+      pdf.addPage();
+      _addHeaderStrip(t.title);
+      let cursorY = contentTop;
 
-        // header strip
-        pdf.setTextColor(gold);
-        pdf.setFont('helvetica','bold');
-        pdf.setFontSize(10);
-        pdf.text(t.title.toUpperCase(), margin, margin + 2);
-        pdf.setTextColor(t2);
-        pdf.setFont('helvetica','normal');
-        const meta = (typeof _globalPeriodLabel === 'function' ? _globalPeriodLabel() : '') + ' · ' + _viewModeLabel();
-        pdf.text(meta, pageW - margin, margin + 2, { align: 'right' });
-
-        const remaining = canvas.height - srcY;
-        let sliceH;
-        if (remaining <= pageSlicePx){
-          sliceH = remaining; // last chunk — no break needed
-        } else {
-          const rawEnd = srcY + pageSlicePx;
-          const snappedEnd = pixelData
-            ? _findBreakRow(pixelData, canvas.width, canvas.height, rawEnd, maxBackoff)
-            : rawEnd;
-          // Guard: refuse to produce a tiny slice if snapping went weirdly short
-          const minSlice = Math.floor(pageSlicePx * 0.5);
-          sliceH = (snappedEnd - srcY) >= minSlice ? (snappedEnd - srcY) : pageSlicePx;
+      for (const el of blocks){
+        let canvas;
+        try {
+          canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false, backgroundColor: bg });
+        } catch(err){
+          console.error('block render failed on', t.id, err);
+          continue;
         }
+        const mmPerPx = usableW / canvas.width;
+        const blockHmm = canvas.height * mmPerPx;
+        const remainingmm = contentBot - cursorY;
 
-        const strip = document.createElement('canvas');
-        strip.width = imgW; strip.height = sliceH;
-        strip.getContext('2d').drawImage(canvas, 0, srcY, imgW, sliceH, 0, 0, imgW, sliceH);
-        const imgHmm = sliceH * mmPerPx;
-        pdf.addImage(strip.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin + 4, usableW, imgHmm);
+        const _place = (c, yMm) => {
+          const hmm = c.height * mmPerPx;
+          pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', margin, yMm, usableW, hmm);
+          return hmm;
+        };
 
-        srcY += sliceH;
+        if (blockHmm <= remainingmm){
+          cursorY += _place(canvas, cursorY);
+          continue;
+        }
+        // Doesn't fit on the rest of the current page → start a new page.
+        if (cursorY > contentTop + 0.5){
+          pdf.addPage(); _addHeaderStrip(t.title); cursorY = contentTop;
+        }
+        if (blockHmm <= usableBlockH){
+          cursorY += _place(canvas, cursorY);
+          continue;
+        }
+        // Block itself exceeds one page — fall back to gap-aware slicing for this block alone.
+        let pixelData = null;
+        try { pixelData = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data; }
+        catch(e){}
+        const pageSlicePx = Math.floor(usableBlockH / mmPerPx);
+        const maxBackoff = Math.floor(pageSlicePx * 0.35);
+        const minSlice = Math.floor(pageSlicePx * 0.5);
+        let srcY = 0;
+        while (srcY < canvas.height){
+          const rem = canvas.height - srcY;
+          let sliceH;
+          if (rem <= pageSlicePx){
+            sliceH = rem;
+          } else {
+            const rawEnd = srcY + pageSlicePx;
+            const snapped = pixelData ? _findBreakRow(pixelData, canvas.width, canvas.height, rawEnd, maxBackoff) : rawEnd;
+            sliceH = (snapped - srcY) >= minSlice ? (snapped - srcY) : pageSlicePx;
+          }
+          const strip = document.createElement('canvas');
+          strip.width = canvas.width; strip.height = sliceH;
+          strip.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          cursorY += _place(strip, cursorY);
+          srcY += sliceH;
+          if (srcY < canvas.height){
+            pdf.addPage(); _addHeaderStrip(t.title); cursorY = contentTop;
+          }
+        }
       }
     } catch(err){
       console.error('Report page failed for', t.id, err);
-      pdf.addPage();
-      pdf.setFillColor(bg); pdf.rect(0, 0, pageW, pageH, 'F');
+      pdf.addPage(); _addHeaderStrip(t.title);
       pdf.setTextColor(t2); pdf.setFontSize(12);
-      pdf.text('Could not render tab: ' + t.title, margin, 40);
+      pdf.text('Could not render tab: ' + t.title, margin, contentTop + 4);
     }
   }
 
