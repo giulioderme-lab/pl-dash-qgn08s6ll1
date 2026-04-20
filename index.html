@@ -277,10 +277,16 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
 .cat-drill-link:hover{color:var(--gold)}
 
 /* OVERVIEW SCORECARD (Package A) */
-.ov-hero{background:var(--card);border:1px solid var(--b1);border-radius:var(--r-lg);padding:var(--sp5) var(--sp5);margin-bottom:var(--sp4);display:grid;grid-template-columns:1fr 1fr;gap:var(--sp5);align-items:center;position:relative;overflow:hidden}
+.ov-hero-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp4);margin-bottom:var(--sp4)}
+@media(max-width:900px){.ov-hero-row{grid-template-columns:1fr}}
+.ov-hero{background:var(--card);border:1px solid var(--b1);border-radius:var(--r-lg);padding:var(--sp5) var(--sp5);display:grid;grid-template-columns:1fr 1fr;gap:var(--sp5);align-items:center;position:relative;overflow:hidden}
 .ov-hero::before{content:'';position:absolute;top:0;left:0;bottom:0;width:4px;background:var(--gold);border-radius:var(--r-lg) 0 0 var(--r-lg)}
+.ov-hero.ov-hero-profit::before{background:var(--pos)}
 .ov-hero-label{font-size:var(--t-xs);font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:var(--sp1)}
 .ov-hero-value{font-size:var(--t-3xl);font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-1px}
+.ov-hero.ov-hero-profit .ov-hero-value{color:var(--pos)}
+.ov-hero.ov-hero-profit.hero-neg .ov-hero-value{color:var(--neg)}
+.ov-hero.ov-hero-profit.hero-neg::before{background:var(--neg)}
 .ov-hero-sub{font-size:var(--t-sm);color:var(--t2);margin-top:var(--sp2);line-height:1.5}
 .ov-hero-sub .delta-pos{color:var(--pos);font-weight:700}
 .ov-hero-sub .delta-neg{color:var(--neg);font-weight:700}
@@ -545,16 +551,29 @@ tr.client-row.selected td,tr.supplier-row.selected td{background:color-mix(in sr
   <div id="panel-overview">
     <div class="panel-heading" id="ov-heading">Executive Scorecard — YTD 2026</div>
 
-    <!-- Row 1: Hero tile (Net Margin) -->
-    <div class="ov-hero" id="ov-hero">
-      <div>
-        <div class="ov-hero-label" id="ov-hero-label">Net Margin — YTD 2026</div>
-        <div class="ov-hero-value" id="ov-hero-value">—</div>
-        <div class="ov-hero-sub" id="ov-hero-sub">—</div>
+    <!-- Row 1: Hero tiles (Net Margin + Net Profit) -->
+    <div class="ov-hero-row">
+      <div class="ov-hero" id="ov-hero">
+        <div>
+          <div class="ov-hero-label" id="ov-hero-label">Net Margin — YTD 2026</div>
+          <div class="ov-hero-value" id="ov-hero-value">—</div>
+          <div class="ov-hero-sub" id="ov-hero-sub">—</div>
+        </div>
+        <div class="ov-hero-spark">
+          <div class="ov-hero-spark-caption">Last 12 months</div>
+          <div id="ov-hero-spark"></div>
+        </div>
       </div>
-      <div class="ov-hero-spark">
-        <div class="ov-hero-spark-caption">Last 12 months</div>
-        <div id="ov-hero-spark"></div>
+      <div class="ov-hero ov-hero-profit" id="ov-hero2">
+        <div>
+          <div class="ov-hero-label" id="ov-hero2-label">Net Profit — YTD 2026</div>
+          <div class="ov-hero-value" id="ov-hero2-value">—</div>
+          <div class="ov-hero-sub" id="ov-hero2-sub">—</div>
+        </div>
+        <div class="ov-hero-spark">
+          <div class="ov-hero-spark-caption">Last 12 months</div>
+          <div id="ov-hero2-spark"></div>
+        </div>
       </div>
     </div>
 
@@ -1494,7 +1513,7 @@ function renderOverviewScorecard(){
   if (heroLbl) heroLbl.textContent = 'Net Margin — ' + periodLbl;
   if (heroVal) heroVal.textContent = curMargin == null ? '—' : curMargin.toFixed(1) + '%';
   if (heroSub){
-    let html = 'Net profit ' + fmtM(curProfit) + ' on revenue ' + fmtM(curRev);
+    let html = 'On revenue ' + fmtM(curRev);
     if (priorHave && prevMargin != null){
       const mpp = curMargin - prevMargin;
       const mppCls = mpp >= 0 ? 'delta-pos' : 'delta-neg';
@@ -1504,6 +1523,28 @@ function renderOverviewScorecard(){
     heroSub.innerHTML = html;
   }
   buildLineSpark('ov-hero-spark', _ovMonthSeries('margin', curYr, lm, 12), {color: gv('--gold'), height: 48});
+
+  // --- Row 1: Hero (Net Profit)
+  const hero2Box = document.getElementById('ov-hero2');
+  const hero2Lbl = document.getElementById('ov-hero2-label');
+  const hero2Val = document.getElementById('ov-hero2-value');
+  const hero2Sub = document.getElementById('ov-hero2-sub');
+  if (hero2Box){
+    hero2Box.classList.toggle('hero-neg', curProfit < 0);
+  }
+  if (hero2Lbl) hero2Lbl.textContent = 'Net Profit — ' + periodLbl;
+  if (hero2Val) hero2Val.textContent = fmtM(curProfit);
+  if (hero2Sub){
+    let html = 'Revenue ' + fmtM(curRev) + ' − costs ' + fmtM(curCosts);
+    if (priorHave && prevProfit != null && prevProfit !== 0){
+      const d = (curProfit - prevProfit) / Math.abs(prevProfit) * 100;
+      html += ' · ' + _deltaHtml(d) + ' vs same period ' + prevYr + ' (' + fmtM(prevProfit) + ')';
+    }
+    hero2Sub.innerHTML = html;
+  }
+  buildLineSpark('ov-hero2-spark',
+    _ovMonthSeries('profit', curYr, lm, 12),
+    { color: curProfit < 0 ? gv('--neg') : gv('--pos'), height: 48 });
 
   // --- Row 2: Composition tiles
   const tiles = [
